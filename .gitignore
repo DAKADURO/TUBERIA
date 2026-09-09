@@ -7,10 +7,14 @@ __pycache__/
 backend/*.db
 
 # Node
+node_modules/
+**/node_modules/
 frontend/node_modules/
 frontend/.next/
 frontend/out/
 frontend/build/
+desktop_cad/node_modules/
+desktop_cad/dist/
 
 # Environment
 .env
