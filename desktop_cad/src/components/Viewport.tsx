@@ -203,13 +203,20 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
     }
 
     let baseAngle = 0;
-    if (snap?.pipeAngle !== undefined) {
-      baseAngle = snap.pipeAngle;
+    if (snap?.pipeDirection) {
+      // Rotación en Y que alinea el eje local X del accesorio (eje de paso principal) con la dirección u del tubo
+      baseAngle = Math.atan2(-snap.pipeDirection.z, snap.pipeDirection.x);
+    } else if (snap?.pipeAngle !== undefined) {
+      baseAngle = snap.pipeAngle - Math.PI / 2;
     } else {
       baseAngle = freeAngleRef.current;
     }
 
     let roll = fittingRollRef.current;
+
+    const fitting = selectedFittingRef.current;
+    const isElbow = fitting?.category === 'elbow_90' || fitting?.category === 'elbow_45';
+    const hasBranch = fitting?.category === 'tee' || isElbow;
 
     // Si está sobre el cuerpo o extremo de una tubería o línea del plano DXF y el usuario no fijó manualmente el lado:
     if (
@@ -221,24 +228,26 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
       snap.pipeDirection &&
       !isRollManualRef.current
     ) {
-      const dx = cursorPos.x - snap.point.x;
-      const dz = cursorPos.z - snap.point.z;
-      if (Math.hypot(dx, dz) > 5) {
-        const u = snap.pipeDirection;
-        const cross = u.z * dx - u.x * dz;
-        if (fittingPlaneRef.current === 'horizontal') {
-          roll = cross >= 0 ? 0 : Math.PI;
-        } else {
-          roll = Math.PI / 2;
+      if (hasBranch) {
+        const dx = cursorPos.x - snap.point.x;
+        const dz = cursorPos.z - snap.point.z;
+        if (Math.hypot(dx, dz) > 5) {
+          const u = snap.pipeDirection;
+          const cross = u.z * dx - u.x * dz;
+          if (fittingPlaneRef.current === 'horizontal') {
+            roll = cross >= 0 ? 0 : Math.PI;
+          } else {
+            roll = Math.PI / 2;
+          }
+          fittingRollRef.current = roll;
         }
-        fittingRollRef.current = roll;
+      } else {
+        roll = fittingPlaneRef.current === 'vertical' ? Math.PI / 2 : 0;
       }
     }
 
     let cornerPlacePos: Vector3D | undefined;
-    const isElbow = selectedFittingRef.current?.category === 'elbow_90' || selectedFittingRef.current?.category === 'elbow_45';
     if ((snap?.type === 'pipe_end' || snap?.type === 'dxf_endpoint') && isElbow && snap.pipeDirection) {
-      const fitting = selectedFittingRef.current;
       const Larm = Math.max(
         fitting?.ports[0]?.position?.x || 0,
         fitting?.ports[0]?.position?.z || 0,
@@ -259,11 +268,13 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
           y: snap.point.y,
           z: snap.point.z + Larm * u.z,
         };
+        baseAngle += Math.PI;
       }
     }
 
     const qBase = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), baseAngle);
-    const qRoll = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), roll);
+    // El eje de balanceo/roll es el eje de la tubería (eje local X):
+    const qRoll = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), roll);
     const q = qBase.clone().multiply(qRoll);
     const euler = new THREE.Euler().setFromQuaternion(q, 'XYZ');
     return {

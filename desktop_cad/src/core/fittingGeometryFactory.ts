@@ -205,58 +205,58 @@ export class FittingGeometryFactory {
       }
 
       case 'tee': {
-        // Tee de 3 vías: cuerpo pasante en Z + ramal en X en plano horizontal XZ
+        // Tee de 3 vías: cuerpo pasante en X + ramal en +Z en plano horizontal XZ
         const length = fitting.dimensions.length;
         const branchW = fitting.dimensions.width;
 
         const mainCyl = new THREE.CylinderGeometry(r * 1.1, r * 1.1, length, 16);
-        mainCyl.rotateX(Math.PI / 2); // Alineado en el eje Z
+        mainCyl.rotateZ(-Math.PI / 2); // Alineado en el eje X (de -length/2 a +length/2)
 
         const branchCyl = new THREE.CylinderGeometry(r * 1.1, r * 1.1, branchW, 16);
-        branchCyl.rotateZ(-Math.PI / 2); // Alineado en el eje X
-        branchCyl.translate(branchW / 2, 0, 0);
+        branchCyl.rotateX(Math.PI / 2); // Alineado en el eje Z (de 0 a +branchW)
+        branchCyl.translate(0, 0, branchW / 2);
 
         const merged = mergeGeometries([mainCyl, branchCyl]) || mainCyl;
         return { geometry: merged, color: 0x2b3847 };
       }
 
       case 'coupling': {
-        // Cople de unión cilíndrico con anillo de refuerzo central
+        // Cople de unión cilíndrico en eje X con anillo de refuerzo central
         const length = fitting.dimensions.length;
         const mainCyl = new THREE.CylinderGeometry(r * 1.15, r * 1.15, length, 16);
-        mainCyl.rotateX(Math.PI / 2); // Alineado en el eje Z
+        mainCyl.rotateZ(-Math.PI / 2); // Alineado en el eje X
 
         const ringCyl = new THREE.CylinderGeometry(r * 1.3, r * 1.3, length * 0.3, 16);
-        ringCyl.rotateX(Math.PI / 2);
+        ringCyl.rotateZ(-Math.PI / 2);
 
         const merged = mergeGeometries([mainCyl, ringCyl]) || mainCyl;
         return { geometry: merged, color: 0x0080ff }; // Azul Airpipe
       }
 
       case 'valve': {
-        // Cuerpo de válvula cilíndrico en Z + cuello en +Y + palanca de apertura
+        // Cuerpo de válvula cilíndrico en X + cuello en +Y + palanca de apertura
         const length = fitting.dimensions.length;
         const bodyCyl = new THREE.CylinderGeometry(r * 1.3, r * 1.3, length, 16);
-        bodyCyl.rotateX(Math.PI / 2); // Alineado en eje Z
+        bodyCyl.rotateZ(-Math.PI / 2); // Alineado en el eje X (conecta con puertos p1 y p2)
 
         // Cuello vertical hacia +Y
         const neckH = r * 1.6;
         const neckCyl = new THREE.CylinderGeometry(r * 0.45, r * 0.45, neckH, 12);
         neckCyl.translate(0, r * 1.1 + neckH / 2, 0);
 
-        // Maneta / palanca horizontal
-        const handleBox = new THREE.BoxGeometry(r * 0.5, r * 0.25, length * 0.85);
-        handleBox.translate(0, r * 1.1 + neckH + r * 0.12, length * 0.25);
+        // Maneta / palanca horizontal a lo largo del tubo
+        const handleBox = new THREE.BoxGeometry(length * 0.75, r * 0.25, r * 0.5);
+        handleBox.translate(length * 0.2, r * 1.1 + neckH + r * 0.12, 0);
 
         const merged = mergeGeometries([bodyCyl, neckCyl, handleBox]) || bodyCyl;
         return { geometry: merged, color: 0x1f2937 };
       }
 
       case 'quick_drop': {
-        // Collarín sobre tubo principal en Z + bajante hacia abajo (-Y)
+        // Collarín sobre tubo principal en X + bajante hacia abajo (-Y)
         const length = fitting.dimensions.length;
         const saddleCyl = new THREE.CylinderGeometry(r * 1.3, r * 1.3, length, 16);
-        saddleCyl.rotateX(Math.PI / 2);
+        saddleCyl.rotateZ(-Math.PI / 2); // Alineado en el eje X
 
         const dropH = fitting.dimensions.height || 60;
         const dropCyl = new THREE.CylinderGeometry(r * 0.9, r * 0.9, dropH, 14);
@@ -267,31 +267,31 @@ export class FittingGeometryFactory {
       }
 
       case 'flange': {
-        // Brida ANSI: cuello en Z + disco exterior
+        // Brida ANSI: cuello en X + disco exterior
         const diskOD = fitting.dimensions.length / 2;
         const thickness = fitting.dimensions.height;
 
         const neck = new THREE.CylinderGeometry(r * 1.15, r * 1.15, thickness * 0.7, 16);
-        neck.rotateX(Math.PI / 2);
-        neck.translate(0, 0, -thickness * 0.35);
+        neck.rotateZ(-Math.PI / 2);
+        neck.translate(-thickness * 0.35, 0, 0);
 
         const disk = new THREE.CylinderGeometry(diskOD, diskOD, thickness * 0.3, 24);
-        disk.rotateX(Math.PI / 2);
-        disk.translate(0, 0, thickness * 0.15);
+        disk.rotateZ(-Math.PI / 2);
+        disk.translate(thickness * 0.15, 0, 0);
 
         const merged = mergeGeometries([neck, disk]) || disk;
         return { geometry: merged, color: 0x475569 };
       }
 
       case 'cap': {
-        // Tapón terminal con cúpula
+        // Tapón terminal con cúpula en eje X
         const length = fitting.dimensions.length;
         const cyl = new THREE.CylinderGeometry(r * 1.12, r * 1.12, length * 0.7, 16);
-        cyl.rotateX(Math.PI / 2);
-        cyl.translate(0, 0, -length * 0.35);
+        cyl.rotateZ(-Math.PI / 2);
+        cyl.translate(-length * 0.35, 0, 0);
 
         const dome = new THREE.SphereGeometry(r * 1.12, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-        dome.rotateX(Math.PI / 2);
+        dome.rotateZ(-Math.PI / 2);
 
         const merged = mergeGeometries([cyl, dome]) || cyl;
         return { geometry: merged, color: 0x0080ff };
