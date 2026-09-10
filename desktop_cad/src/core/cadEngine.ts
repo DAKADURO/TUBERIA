@@ -37,6 +37,90 @@ function getLegibleColor(hexStr?: string, defaultColor = '#58a6ff'): string {
   return hexStr;
 }
 
+export interface DxfSegment {
+  p1: Vector3D;
+  p2: Vector3D;
+  length: number;
+}
+
+export class SpatialHashGrid2D {
+  private cellSize: number;
+  private grid = new Map<string, DxfSegment[]>();
+
+  constructor(cellSize = 1000) {
+    this.cellSize = cellSize;
+  }
+
+  private getKey(cx: number, cz: number): string {
+    return `${cx},${cz}`;
+  }
+
+  public clear() {
+    this.grid.clear();
+  }
+
+  public insert(seg: DxfSegment) {
+    const minX = Math.min(seg.p1.x, seg.p2.x);
+    const maxX = Math.max(seg.p1.x, seg.p2.x);
+    const minZ = Math.min(seg.p1.z, seg.p2.z);
+    const maxZ = Math.max(seg.p1.z, seg.p2.z);
+
+    const minCx = Math.floor(minX / this.cellSize);
+    const maxCx = Math.floor(maxX / this.cellSize);
+    const minCz = Math.floor(minZ / this.cellSize);
+    const maxCz = Math.floor(maxZ / this.cellSize);
+
+    const spanX = maxCx - minCx;
+    const spanZ = maxCz - minCz;
+    if (spanX * spanZ > 60) {
+      // Para líneas extremadamente largas, indexar en extremos y centro
+      const pts = [seg.p1, seg.p2, { x: (seg.p1.x + seg.p2.x) / 2, y: 0, z: (seg.p1.z + seg.p2.z) / 2 }];
+      for (const pt of pts) {
+        const key = this.getKey(Math.floor(pt.x / this.cellSize), Math.floor(pt.z / this.cellSize));
+        let list = this.grid.get(key);
+        if (!list) {
+          list = [];
+          this.grid.set(key, list);
+        }
+        list.push(seg);
+      }
+      return;
+    }
+
+    for (let cx = minCx; cx <= maxCx; cx++) {
+      for (let cz = minCz; cz <= maxCz; cz++) {
+        const key = this.getKey(cx, cz);
+        let list = this.grid.get(key);
+        if (!list) {
+          list = [];
+          this.grid.set(key, list);
+        }
+        list.push(seg);
+      }
+    }
+  }
+
+  public queryRadius(x: number, z: number, radius: number): DxfSegment[] {
+    const minCx = Math.floor((x - radius) / this.cellSize);
+    const maxCx = Math.floor((x + radius) / this.cellSize);
+    const minCz = Math.floor((z - radius) / this.cellSize);
+    const maxCz = Math.floor((z + radius) / this.cellSize);
+
+    const resultSet = new Set<DxfSegment>();
+    for (let cx = minCx; cx <= maxCx; cx++) {
+      for (let cz = minCz; cz <= maxCz; cz++) {
+        const list = this.grid.get(this.getKey(cx, cz));
+        if (list) {
+          for (let i = 0; i < list.length; i++) {
+            resultSet.add(list[i]);
+          }
+        }
+      }
+    }
+    return Array.from(resultSet);
+  }
+}
+
 export interface CADEngineOptions {
   container: HTMLElement;
   onFpsUpdate?: (fps: number) => void;
@@ -53,6 +137,12 @@ export class CADEngine {
   private orthographicCamera: THREE.OrthographicCamera;
   private currentCamera: THREE.Camera;
 
+  // Render-on-Demand (Dirty Flag) para consumo GPU casi 0% en reposo
+  private needsRender = true;
+  private renderHoldFrames = 10;
+  private dxfTextsDirty = true;
+  private materialCache = new Map<string, THREE.Material>();
+
   // Capa 2D overlay de alta resolución para Textos y Cotas DXF
   private textCanvas: HTMLCanvasElement | null = null;
   private textCtx: CanvasRenderingContext2D | null = null;
@@ -68,7 +158,8 @@ export class CADEngine {
   private fittingsGroup: THREE.Group;
   private portsGroup: THREE.Group;
 
-  public dxfSegments: Array<{ p1: Vector3D; p2: Vector3D; length: number }> = [];
+  public dxfSegments: DxfSegment[] = [];
+  public dxfSpatialGrid = new SpatialHashGrid2D(1000);
   private highlightLine: THREE.Line | null = null;
   private snapMarker: THREE.Mesh | null = null;
 
@@ -267,6 +358,32 @@ export class CADEngine {
     this.animate();
   }
 
+  public requestRender(frames = 3) {
+    this.needsRender = true;
+    this.renderHoldFrames = Math.max(this.renderHoldFrames, frames);
+  }
+
+  public markDxfTextsDirty() {
+    this.dxfTextsDirty = true;
+    this.requestRender(4);
+  }
+
+  public disposeHierarchy(obj: THREE.Object3D) {
+    obj.traverse((child) => {
+      if ((child as any).geometry) {
+        (child as any).geometry.dispose();
+      }
+      if ((child as any).material) {
+        const mat = (child as any).material;
+        if (Array.isArray(mat)) {
+          mat.forEach((m: any) => m?.dispose?.());
+        } else {
+          mat?.dispose?.();
+        }
+      }
+    });
+  }
+
   private setupLights() {
     this.lightsGroup.clear();
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
@@ -306,6 +423,8 @@ export class CADEngine {
       this.orthographicCamera.lookAt(this.cameraTarget);
       this.currentCamera = this.orthographicCamera;
     }
+    this.requestRender(4);
+    this.dxfTextsDirty = true;
   }
 
   public setView(view: CameraView) {
@@ -336,6 +455,7 @@ export class CADEngine {
     } else {
       this.renderer.shadowMap.enabled = false;
     }
+    this.requestRender(5);
   }
 
   public setPerformanceProfile(profile: PerformanceProfile) {
@@ -345,13 +465,44 @@ export class CADEngine {
       this.renderer.shadowMap.enabled = false;
       this.setVisualMode('flat');
     } else if (profile === 'balanced') {
-      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
       this.renderer.shadowMap.enabled = false;
       this.setVisualMode('shaded_edges');
     } else if (profile === 'ultra') {
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       this.setVisualMode('realistic');
     }
+    this.requestRender(5);
+  }
+
+  private getCachedMaterial(
+    type: 'wireframe' | 'hidden_line' | 'flat' | 'shaded_edges' | 'realistic',
+    color: number,
+    isPipe: boolean
+  ): THREE.Material {
+    const key = `${type}_${color}_${isPipe}`;
+    let mat = this.materialCache.get(key);
+    if (!mat) {
+      if (type === 'wireframe') {
+        mat = new THREE.MeshBasicMaterial({ color, wireframe: true });
+      } else if (type === 'hidden_line') {
+        mat = new THREE.MeshBasicMaterial({ color: 0x1b2028 });
+      } else if (type === 'flat') {
+        mat = new THREE.MeshLambertMaterial({ color, flatShading: true });
+      } else if (type === 'shaded_edges') {
+        mat = new THREE.MeshLambertMaterial({ color });
+      } else if (type === 'realistic') {
+        mat = new THREE.MeshStandardMaterial({
+          color,
+          metalness: isPipe ? 0.85 : 0.6,
+          roughness: isPipe ? 0.25 : 0.4,
+        });
+      } else {
+        mat = new THREE.MeshLambertMaterial({ color });
+      }
+      this.materialCache.set(key, mat);
+    }
+    return mat;
   }
 
   private applyVisualModeToGroup(group: THREE.Group) {
@@ -359,46 +510,28 @@ export class CADEngine {
       if (child instanceof THREE.Mesh) {
         const isPipe = child.userData.isPipe;
         const color = isPipe ? 0x0080ff : (child.userData.customColor || 0xd0d8e0);
+        child.material = this.getCachedMaterial(this.currentVisualMode as any, color, isPipe);
 
-        if (this.currentVisualMode === 'wireframe') {
-          child.material = new THREE.MeshBasicMaterial({
-            color: color,
-            wireframe: true,
-          });
-          // Ocultar bordes extras
+        if (
+          this.currentVisualMode === 'wireframe' ||
+          this.currentVisualMode === 'flat' ||
+          this.currentVisualMode === 'realistic'
+        ) {
           if (child.children.length > 0) child.children[0].visible = false;
         } else if (this.currentVisualMode === 'hidden_line') {
-          child.material = new THREE.MeshBasicMaterial({
-            color: 0x1b2028,
-          });
           if (child.children.length > 0) {
             child.children[0].visible = true;
-            (child.children[0] as any).material.color.setHex(0xffffff);
+            (child.children[0] as any).material.color?.setHex(0xffffff);
           }
-        } else if (this.currentVisualMode === 'flat') {
-          child.material = new THREE.MeshLambertMaterial({
-            color: color,
-            flatShading: true,
-          });
-          if (child.children.length > 0) child.children[0].visible = false;
         } else if (this.currentVisualMode === 'shaded_edges') {
-          child.material = new THREE.MeshLambertMaterial({
-            color: color,
-          });
           if (child.children.length > 0) {
             child.children[0].visible = true;
-            (child.children[0] as any).material.color.setHex(0x11161d);
+            (child.children[0] as any).material.color?.setHex(0x11161d);
           }
-        } else if (this.currentVisualMode === 'realistic') {
-          child.material = new THREE.MeshStandardMaterial({
-            color: color,
-            metalness: isPipe ? 0.85 : 0.6,
-            roughness: isPipe ? 0.25 : 0.4,
-          });
-          if (child.children.length > 0) child.children[0].visible = false;
         }
       }
     });
+    this.requestRender(4);
   }
 
   // --- ADICIÓN DE TUBERÍAS PARAMÉTRICAS ---
@@ -430,6 +563,7 @@ export class CADEngine {
     mesh.add(edgesLine);
 
     this.pipesGroup.add(mesh);
+    this.requestRender(4);
     return mesh;
   }
 
@@ -475,7 +609,7 @@ export class CADEngine {
     if (this.selectedPipeHighlight) {
       this.selectedPipeHighlight.update();
     }
-
+    this.requestRender(4);
     return true;
   }
 
@@ -484,18 +618,14 @@ export class CADEngine {
     const meshIndex = this.pipesGroup.children.findIndex((child) => child.userData?.id === id);
     if (meshIndex === -1) return false;
     const mesh = this.pipesGroup.children[meshIndex] as THREE.Mesh;
-    mesh.geometry.dispose();
-    while (mesh.children.length > 0) {
-      const c = mesh.children[0];
-      if ((c as any).geometry) (c as any).geometry.dispose();
-      mesh.remove(c);
-    }
+    this.disposeHierarchy(mesh);
     this.pipesGroup.remove(mesh);
     if (this.selectedPipeHighlight) {
       this.scene.remove(this.selectedPipeHighlight);
       this.selectedPipeHighlight.dispose();
       this.selectedPipeHighlight = null;
     }
+    this.requestRender(4);
     return true;
   }
 
@@ -507,6 +637,7 @@ export class CADEngine {
       this.scene.remove(this.selectedPipeHighlight);
       this.selectedPipeHighlight.dispose();
       this.selectedPipeHighlight = null;
+      this.requestRender(3);
     }
     if (!pipeId) return;
 
@@ -514,6 +645,7 @@ export class CADEngine {
     if (mesh) {
       this.selectedPipeHighlight = new THREE.BoxHelper(mesh, 0x00d4ff);
       this.scene.add(this.selectedPipeHighlight);
+      this.requestRender(3);
     }
   }
 
@@ -539,7 +671,8 @@ export class CADEngine {
     rotation: Vector3D,
     colorHex: number,
     fittingId: string,
-    ports: ConnectionPort[]
+    ports: ConnectionPort[],
+    edgesGeometry?: THREE.BufferGeometry
   ): THREE.Mesh {
     const material = new THREE.MeshLambertMaterial({ color: colorHex });
     const mesh = new THREE.Mesh(geometry, material);
@@ -548,7 +681,7 @@ export class CADEngine {
     mesh.userData = { id: fittingId, isFitting: true, customColor: colorHex };
 
     // Líneas de aristas CAD
-    const edgesGeo = new THREE.EdgesGeometry(geometry, 25);
+    const edgesGeo = edgesGeometry || new THREE.EdgesGeometry(geometry, 25);
     const edgesLine = new THREE.LineSegments(edgesGeo, new THREE.LineBasicMaterial({ color: 0x1a222d }));
     mesh.add(edgesLine);
 
@@ -564,6 +697,7 @@ export class CADEngine {
       mesh.add(portMesh);
     });
 
+    this.requestRender(4);
     return mesh;
   }
 
@@ -575,6 +709,7 @@ export class CADEngine {
       this.scene.remove(this.selectedFittingHighlight);
       this.selectedFittingHighlight.dispose();
       this.selectedFittingHighlight = null;
+      this.requestRender(3);
     }
     if (!fittingId) return;
 
@@ -582,6 +717,7 @@ export class CADEngine {
     if (mesh) {
       this.selectedFittingHighlight = new THREE.BoxHelper(mesh, 0x00ffff);
       this.scene.add(this.selectedFittingHighlight);
+      this.requestRender(3);
     }
   }
 
@@ -598,6 +734,7 @@ export class CADEngine {
     if (this.selectedFittingHighlight) {
       this.selectedFittingHighlight.update();
     }
+    this.requestRender(4);
     return true;
   }
 
@@ -605,12 +742,14 @@ export class CADEngine {
     const idx = this.fittingsGroup.children.findIndex((c) => c.userData?.id === fittingId);
     if (idx === -1) return false;
     const mesh = this.fittingsGroup.children[idx] as THREE.Mesh;
+    this.disposeHierarchy(mesh);
     this.fittingsGroup.remove(mesh);
     if (this.selectedFittingHighlight) {
       this.scene.remove(this.selectedFittingHighlight);
       this.selectedFittingHighlight.dispose();
       this.selectedFittingHighlight = null;
     }
+    this.requestRender(4);
     return true;
   }
 
@@ -642,8 +781,11 @@ export class CADEngine {
       layers?: DxfLayerInfo[];
     } = {}
   ) {
+    this.disposeHierarchy(this.dxfGroup);
     this.dxfGroup.clear();
     this.dxfTextItems = [];
+    this.dxfSegments = [];
+    this.dxfSpatialGrid.clear();
 
     const autoCenter = options.autoCenter ?? true;
     const offsetX = autoCenter ? (options.centerX ?? 0) : 0;
@@ -666,8 +808,6 @@ export class CADEngine {
     const toSceneX = (x: number) => (x - offsetX) * scale;
     const toSceneZ = (y: number) => (y - offsetY) * scale;
 
-    this.dxfSegments = [];
-
     const addSegment = (x1: number, y1: number, x2: number, y2: number, r = 0.55, g = 0.7, b = 0.85, isMain = true) => {
       const sx1 = toSceneX(x1);
       const sz1 = toSceneZ(y1);
@@ -681,11 +821,13 @@ export class CADEngine {
       if (isMain) {
         const len = Math.hypot(sx2 - sx1, sz2 - sz1);
         if (len >= 5) {
-          this.dxfSegments.push({
+          const segItem = {
             p1: { x: sx1, y: 0, z: sz1 },
             p2: { x: sx2, y: 0, z: sz2 },
             length: Math.round(len),
-          });
+          };
+          this.dxfSegments.push(segItem);
+          this.dxfSpatialGrid.insert(segItem);
         }
       }
     };
@@ -1009,6 +1151,8 @@ export class CADEngine {
       lineSegments.position.y = -1; // Justo en el plano de suelo de referencia
       this.dxfGroup.add(lineSegments);
     }
+    this.markDxfTextsDirty();
+    this.requestRender(5);
   }
 
   public getPipesCount(): number {
@@ -1104,12 +1248,17 @@ export class CADEngine {
 
   // Ajustar el tamaño de la rejilla CAD para que abarque holgadamente el plano
   public updateGrid(span: number) {
-    this.scene.remove(this.gridHelper);
+    if (this.gridHelper) {
+      this.scene.remove(this.gridHelper);
+      this.gridHelper.geometry.dispose();
+      (this.gridHelper.material as any)?.dispose?.();
+    }
     const gridSize = Math.max(10000, Math.ceil((span * 1.4) / 1000) * 1000);
     const divisions = Math.min(200, Math.max(20, Math.round(gridSize / 1000)));
     this.gridHelper = new THREE.GridHelper(gridSize, divisions, 0x007acc, 0x2a323d);
     this.gridHelper.position.y = -0.5;
     this.scene.add(this.gridHelper);
+    this.requestRender(3);
   }
 
   public setDxfVisible(visible: boolean) {
@@ -1117,6 +1266,8 @@ export class CADEngine {
     if (!visible && this.textCtx && this.textCanvas) {
       this.textCtx.clearRect(0, 0, this.textCanvas.width, this.textCanvas.height);
     }
+    this.markDxfTextsDirty();
+    this.requestRender(5);
   }
 
   public setShowDxfTexts(show: boolean) {
@@ -1124,6 +1275,8 @@ export class CADEngine {
     if (!show && this.textCtx && this.textCanvas) {
       this.textCtx.clearRect(0, 0, this.textCanvas.width, this.textCanvas.height);
     }
+    this.markDxfTextsDirty();
+    this.requestRender(5);
   }
 
   public getShowDxfTexts(): boolean {
@@ -1131,15 +1284,21 @@ export class CADEngine {
   }
 
   public clearScene() {
+    this.disposeHierarchy(this.pipesGroup);
     this.pipesGroup.clear();
+    this.disposeHierarchy(this.fittingsGroup);
     this.fittingsGroup.clear();
+    this.disposeHierarchy(this.dxfGroup);
     this.dxfGroup.clear();
+    this.dxfSegments = [];
+    this.dxfSpatialGrid.clear();
     this.dxfTextItems = [];
     if (this.textCtx && this.textCanvas) {
       this.textCtx.clearRect(0, 0, this.textCanvas.width, this.textCanvas.height);
     }
     if (this.previewPipeMesh) this.previewPipeMesh.visible = false;
     if (this.previewFittingMesh) this.previewFittingMesh.visible = false;
+    this.requestRender(5);
   }
 
   // Actualizar resolución del canvas de textos al cambiar tamaño de pantalla
@@ -1279,14 +1438,20 @@ export class CADEngine {
   // Tubería elástica 3D/2D en tiempo real (previsualización mientras mueves el ratón)
   public updatePreviewPipe(start: Vector3D | null, end: Vector3D | null, diameter: number) {
     if (!start || !end) {
-      if (this.previewPipeMesh) this.previewPipeMesh.visible = false;
+      if (this.previewPipeMesh && this.previewPipeMesh.visible) {
+        this.previewPipeMesh.visible = false;
+        this.requestRender(2);
+      }
       return;
     }
     const vStart = new THREE.Vector3(start.x, start.y, start.z);
     const vEnd = new THREE.Vector3(end.x, end.y, end.z);
     const dist = vStart.distanceTo(vEnd);
     if (dist < 10) {
-      if (this.previewPipeMesh) this.previewPipeMesh.visible = false;
+      if (this.previewPipeMesh && this.previewPipeMesh.visible) {
+        this.previewPipeMesh.visible = false;
+        this.requestRender(2);
+      }
       return;
     }
 
@@ -1308,6 +1473,7 @@ export class CADEngine {
     this.previewPipeMesh.scale.set(1, 1, dist);
     this.previewPipeMesh.position.copy(vStart);
     this.previewPipeMesh.lookAt(vEnd);
+    this.requestRender(2);
   }
 
   // Previsualización interactiva 3D de accesorio (fantasma que sigue al cursor antes de colocar)
@@ -1315,17 +1481,20 @@ export class CADEngine {
     geometry: THREE.BufferGeometry | null,
     position: Vector3D | null,
     rotation: Vector3D | null,
-    fittingId?: string
+    fittingId?: string,
+    edgesGeometry?: THREE.BufferGeometry
   ) {
     if (!geometry || !position) {
-      if (this.previewFittingMesh) this.previewFittingMesh.visible = false;
+      if (this.previewFittingMesh && this.previewFittingMesh.visible) {
+        this.previewFittingMesh.visible = false;
+        this.requestRender(2);
+      }
       return;
     }
 
     if (!this.previewFittingMesh || this.currentPreviewFittingId !== fittingId) {
       if (this.previewFittingMesh) {
         this.scene.remove(this.previewFittingMesh);
-        this.previewFittingMesh.geometry.dispose();
       }
       const mat = new THREE.MeshLambertMaterial({
         color: 0x00ffff,
@@ -1334,7 +1503,7 @@ export class CADEngine {
       });
       this.previewFittingMesh = new THREE.Mesh(geometry, mat);
 
-      const edgesGeo = new THREE.EdgesGeometry(geometry, 25);
+      const edgesGeo = edgesGeometry || new THREE.EdgesGeometry(geometry, 25);
       const edgesLine = new THREE.LineSegments(
         edgesGeo,
         new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 })
@@ -1352,6 +1521,7 @@ export class CADEngine {
     } else {
       this.previewFittingMesh.rotation.set(0, 0, 0);
     }
+    this.requestRender(2);
   }
 
   // --- MÉTODOS DE MEDICIÓN INTERACTIVA CAD ---
@@ -1373,7 +1543,10 @@ export class CADEngine {
 
   public updateMeasurePreview(start: Vector3D | null, end: Vector3D | null) {
     if (!start || !end) {
-      this.measurementGroup.visible = false;
+      if (this.measurementGroup.visible) {
+        this.measurementGroup.visible = false;
+        this.requestRender(2);
+      }
       return;
     }
 
@@ -1400,6 +1573,7 @@ export class CADEngine {
 
     this.renderMeasureLabel(dist, { x: midX, y: midY, z: midZ }, unitsPerPixel);
     this.measurementGroup.visible = true;
+    this.requestRender(2);
   }
 
   public setMeasurement(start: Vector3D, end: Vector3D) {
@@ -1407,7 +1581,10 @@ export class CADEngine {
   }
 
   public clearMeasurement() {
-    this.measurementGroup.visible = false;
+    if (this.measurementGroup.visible) {
+      this.measurementGroup.visible = false;
+      this.requestRender(2);
+    }
   }
 
   private renderMeasureLabel(dist: number, mid: Vector3D, unitsPerPixel: number) {
@@ -1461,7 +1638,10 @@ export class CADEngine {
   // Actualizar línea guía visual de alineación / simetría entre tramos
   public updateAlignmentGuide(p1: Vector3D | null, p2: Vector3D | null) {
     if (!p1 || !p2) {
-      if (this.alignmentLine) this.alignmentLine.visible = false;
+      if (this.alignmentLine && this.alignmentLine.visible) {
+        this.alignmentLine.visible = false;
+        this.requestRender(2);
+      }
       return;
     }
     const pos = this.alignmentLine.geometry.attributes.position as THREE.BufferAttribute;
@@ -1470,6 +1650,7 @@ export class CADEngine {
     pos.needsUpdate = true;
     this.alignmentLine.computeLineDistances();
     this.alignmentLine.visible = true;
+    this.requestRender(2);
   }
 
   // --- MANEJO DE EVENTOS DE MOUSE ---
@@ -1494,19 +1675,47 @@ export class CADEngine {
       if (e.button === 1 || e.button === 2 || (e.button === 0 && this.currentView !== 'perspective_3d')) {
         el.style.cursor = 'grabbing';
       }
+      this.requestRender(3);
     });
 
     window.addEventListener('mouseup', () => {
       this.isMouseDown = false;
       this.isOrbiting = false;
       el.style.cursor = 'crosshair';
+      this.requestRender(3);
     });
 
     el.addEventListener('mousemove', (e) => {
-      // Raycasting para detectar coordenadas en el plano de trabajo
+      this.requestRender(2);
+
       const rect = el.getBoundingClientRect();
       this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      // Si el usuario está arrastrando cámara (pan/órbita), omitir OSNAP para máxima fluidez
+      if (this.isMouseDown) {
+        const deltaX = e.clientX - this.previousMousePosition.x;
+        const deltaY = e.clientY - this.previousMousePosition.y;
+
+        if (this.mouseButton === 0) {
+          if (this.currentView === 'perspective_3d') {
+            this.isOrbiting = true;
+            this.cameraTheta -= deltaX * 0.008;
+            this.cameraPhi -= deltaY * 0.008;
+            this.cameraPhi = Math.max(0.04, Math.min(Math.PI / 2 - 0.03, this.cameraPhi));
+            this.updateCameraTransform();
+          } else {
+            el.style.cursor = 'grabbing';
+            this.panCamera(deltaX, deltaY);
+          }
+        } else if (this.mouseButton === 1 || this.mouseButton === 2) {
+          el.style.cursor = 'grabbing';
+          this.panCamera(deltaX, deltaY);
+        }
+
+        this.previousMousePosition = { x: e.clientX, y: e.clientY };
+        return;
+      }
 
       // Calcular posición real en milímetros sobre el plano horizontal
       const worldPoint = this.getWorldPointFromMouse(e.clientX, e.clientY);
@@ -1518,34 +1727,7 @@ export class CADEngine {
         );
       }
 
-      if (!this.isMouseDown) {
-        this.checkPortHover();
-        return;
-      }
-
-      const deltaX = e.clientX - this.previousMousePosition.x;
-      const deltaY = e.clientY - this.previousMousePosition.y;
-
-      if (this.mouseButton === 0) {
-        // Botón Izquierdo: Órbita en 3D
-        if (this.currentView === 'perspective_3d') {
-          this.isOrbiting = true;
-          this.cameraTheta -= deltaX * 0.008;
-          this.cameraPhi -= deltaY * 0.008;
-          // Bloquear para que la cámara siempre esté por encima del suelo (evita pasar por debajo de la nave o invertir vista)
-          this.cameraPhi = Math.max(0.04, Math.min(Math.PI / 2 - 0.03, this.cameraPhi));
-          this.updateCameraTransform();
-        } else {
-          // En 2D: Pan (arrastre) 1:1 con botón izquierdo
-          el.style.cursor = 'grabbing';
-          this.panCamera(deltaX, deltaY);
-        }
-      } else if (this.mouseButton === 1 || this.mouseButton === 2) {
-        // Botón Central o Derecho: Paneo (Pan) 1:1 profesional estilo AutoCAD
-        el.style.cursor = 'grabbing';
-        this.panCamera(deltaX, deltaY);
-      }
-
+      this.checkPortHover();
       this.previousMousePosition = { x: e.clientX, y: e.clientY };
     });
 
@@ -1766,8 +1948,13 @@ export class CADEngine {
       }
     });
 
-    // Líneas del plano DXF cercanas al cursor
-    for (const seg of this.dxfSegments) {
+    // Líneas del plano DXF cercanas al cursor usando Spatial Hash Grid O(1)
+    const localDxfSegments = this.dxfSegments.length > 0
+      ? this.dxfSpatialGrid.queryRadius(worldRaycast.x, worldRaycast.z, snapThreshold * 3.5)
+      : [];
+
+    for (let sIdx = 0; sIdx < localDxfSegments.length; sIdx++) {
+      const seg = localDxfSegments[sIdx];
       const d1 = Math.hypot(seg.p1.x - worldRaycast.x, seg.p1.z - worldRaycast.z);
       const d2 = Math.hypot(seg.p2.x - worldRaycast.x, seg.p2.z - worldRaycast.z);
       if (d1 < snapThreshold * 3.5 || d2 < snapThreshold * 3.5) {
@@ -1928,8 +2115,9 @@ export class CADEngine {
         }
       });
 
-      // 4. Snapping a líneas del plano DXF
-      for (const seg of this.dxfSegments) {
+      // 4. Snapping a líneas del plano DXF (solo candidatos de proximidad)
+      for (let sIdx = 0; sIdx < localDxfSegments.length; sIdx++) {
+        const seg = localDxfSegments[sIdx];
         const ax = seg.p1.x, az = seg.p1.z;
         const bx = seg.p2.x, bz = seg.p2.z;
         const vx = bx - ax, vz = bz - az;
@@ -2037,25 +2225,36 @@ export class CADEngine {
     this.updateTextCanvasSize();
   }
 
-  // --- BUCLE DE RENDERIZADO CON MEDICIÓN DE FPS ---
+  // --- BUCLE DE RENDERIZADO EFICIENTE CON RENDER-ON-DEMAND Y MEDICIÓN DE FPS ---
   private animate = () => {
     requestAnimationFrame(this.animate);
 
-    this.renderer.render(this.scene, this.currentCamera);
-    this.renderDxfTexts();
+    if (this.needsRender || this.renderHoldFrames > 0) {
+      this.renderer.render(this.scene, this.currentCamera);
+      if (this.dxfTextsDirty) {
+        this.renderDxfTexts();
+        this.dxfTextsDirty = false;
+      }
+      if (this.renderHoldFrames > 0) {
+        this.renderHoldFrames--;
+      } else {
+        this.needsRender = false;
+      }
+    }
 
     // Cálculo de FPS en tiempo real
     this.frameCount++;
     const now = performance.now();
     if (now - this.lastTime >= 1000) {
       const fps = Math.round((this.frameCount * 1000) / (now - this.lastTime));
-      if (this.onFpsUpdate) this.onFpsUpdate(fps);
+      if (this.onFpsUpdate) this.onFpsUpdate(this.needsRender || this.renderHoldFrames > 0 ? fps : 60);
       this.frameCount = 0;
       this.lastTime = now;
     }
   };
 
   public destroy() {
+    this.disposeHierarchy(this.scene);
     this.renderer.dispose();
     if (this.textCanvas && this.container.contains(this.textCanvas)) {
       this.container.removeChild(this.textCanvas);

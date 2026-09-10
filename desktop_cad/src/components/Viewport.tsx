@@ -38,7 +38,7 @@ interface ViewportProps {
   onDblClickZoomFit?: () => void;
 }
 
-export const Viewport: React.FC<ViewportProps> = ({
+export const Viewport: React.FC<ViewportProps> = React.memo(({
   tool,
   visualMode,
   cameraView,
@@ -59,9 +59,11 @@ export const Viewport: React.FC<ViewportProps> = ({
   onDblClickZoomFit,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [hoveredPort, setHoveredPort] = useState<ConnectionPort | null>(null);
   const [currentSnap, setCurrentSnap] = useState<SnapResult | null>(null);
-  const [worldCoord, setWorldCoord] = useState<Vector3D>({ x: 0, y: 0, z: 0 });
+  const coordXRef = useRef<HTMLSpanElement>(null);
+  const coordZRef = useRef<HTMLSpanElement>(null);
+  const routingDistanceRef = useRef<HTMLSpanElement>(null);
+  const liveMeasureDistanceRef = useRef<HTMLSpanElement>(null);
   const [routingStart, setRoutingStart] = useState<Vector3D | null>(null);
   const [isOrtho, setIsOrtho] = useState<boolean>(true); // Modo Ortogonal
   const [isAutoTraceLine, setIsAutoTraceLine] = useState<boolean>(true); // Auto-trazar líneas del plano en 1 clic
@@ -542,13 +544,25 @@ export const Viewport: React.FC<ViewportProps> = ({
     const engine = new CADEngine({
       container: containerRef.current,
       onFpsUpdate,
-      onPortHover: (port) => {
-        setHoveredPort(port);
-      },
+      onPortHover: () => {},
       onDblClickZoomFit,
       onMouseMoveWorld: (worldPos, snap) => {
+        const prevSnap = currentSnapRef.current;
         currentSnapRef.current = snap;
-        setCurrentSnap(snap);
+
+        const snapChanged = (!prevSnap && snap) || (prevSnap && !snap) || (
+          prevSnap && snap && (
+            prevSnap.type !== snap.type ||
+            prevSnap.pipeInfo?.pipeId !== snap.pipeInfo?.pipeId ||
+            prevSnap.port?.id !== snap.port?.id ||
+            prevSnap.dxfLine?.p1.x !== snap.dxfLine?.p1.x ||
+            prevSnap.dxfLine?.p1.z !== snap.dxfLine?.p1.z
+          )
+        );
+
+        if (snapChanged) {
+          setCurrentSnap(snap);
+        }
 
         let finalPos = { ...worldPos };
 
@@ -615,17 +629,23 @@ export const Viewport: React.FC<ViewportProps> = ({
         }
 
         if (foundAlignment) {
+          const prevAlign = alignmentTrackingRef.current;
           alignmentTrackingRef.current = foundAlignment;
-          setAlignmentTrackingInfo(foundAlignment);
+          if (!prevAlign || prevAlign.text !== foundAlignment.text) {
+            setAlignmentTrackingInfo(foundAlignment);
+          }
           engine.updateAlignmentGuide(finalPos, foundAlignment.refPoint);
         } else if (routingStartRef.current) {
-          alignmentTrackingRef.current = null;
-          setAlignmentTrackingInfo(null);
-          engine.updateAlignmentGuide(null, null);
+          if (alignmentTrackingRef.current) {
+            alignmentTrackingRef.current = null;
+            setAlignmentTrackingInfo(null);
+            engine.updateAlignmentGuide(null, null);
+          }
         }
 
         worldCoordRef.current = finalPos;
-        setWorldCoord(finalPos);
+        if (coordXRef.current) coordXRef.current.textContent = `X: ${Math.round(finalPos.x)} mm`;
+        if (coordZRef.current) coordZRef.current.textContent = `Z: ${Math.round(finalPos.z)} mm`;
 
         // Actualizar previsualización elástica de tubería
         if (routingStartRef.current) {
@@ -633,7 +653,9 @@ export const Viewport: React.FC<ViewportProps> = ({
             finalPos.x - routingStartRef.current.x,
             finalPos.z - routingStartRef.current.z
           );
-          setCurrentDistance(dist);
+          if (routingDistanceRef.current) {
+            routingDistanceRef.current.textContent = `Longitud Tramo: ${(dist / 1000).toFixed(2)} m (${Math.round(dist)} mm)`;
+          }
           engine.updatePreviewPipe(routingStartRef.current, finalPos, selectedDiameterRef.current);
         }
 
@@ -643,7 +665,9 @@ export const Viewport: React.FC<ViewportProps> = ({
             finalPos.x - measureStartRef.current.x,
             finalPos.z - measureStartRef.current.z
           );
-          setLiveMeasureDistance(mDist);
+          if (liveMeasureDistanceRef.current) {
+            liveMeasureDistanceRef.current.textContent = `${(mDist / 1000).toFixed(3)} m (${Math.round(mDist)} mm)`;
+          }
           engine.updateMeasurePreview(measureStartRef.current, finalPos);
         }
 
@@ -653,13 +677,14 @@ export const Viewport: React.FC<ViewportProps> = ({
           const placePos = ((snap?.type === 'pipe_corner' || snap?.type === 'dxf_corner') && cornerPlacePos)
             ? cornerPlacePos
             : (snap ? snap.point : finalPos);
-          const { geometry } = FittingGeometryFactory.createGeometry(selectedFittingRef.current);
+          const { geometry, edgesGeometry } = FittingGeometryFactory.createGeometry(selectedFittingRef.current);
           fittingRotationRef.current = rotation;
           engine.updatePreviewFitting(
             geometry,
             placePos,
             rotation,
-            selectedFittingRef.current.id
+            selectedFittingRef.current.id,
+            edgesGeometry
           );
         }
       },
@@ -1177,7 +1202,7 @@ export const Viewport: React.FC<ViewportProps> = ({
                   <span className="font-bold text-amber-300">
                     Midiendo en Tiempo Real:
                   </span>
-                  <span className="font-mono bg-amber-950 text-amber-200 px-2.5 py-0.5 rounded text-[12px] font-bold border border-amber-500/40">
+                  <span ref={liveMeasureDistanceRef} className="font-mono bg-amber-950 text-amber-200 px-2.5 py-0.5 rounded text-[12px] font-bold border border-amber-500/40">
                     {(liveMeasureDistance / 1000).toFixed(3)} m ({Math.round(liveMeasureDistance)} mm)
                   </span>
                   <span className="text-[11px] text-gray-300">
@@ -1410,7 +1435,7 @@ export const Viewport: React.FC<ViewportProps> = ({
           <div className="flex flex-col space-y-1.5 pointer-events-auto">
             <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-600 px-3.5 py-1.5 rounded-lg text-xs text-white font-mono flex items-center space-x-3 shadow-2xl font-bold border border-cyan-400/40">
               <Ruler className="w-4 h-4 text-cyan-300" />
-              <span>
+              <span ref={routingDistanceRef}>
                 Longitud Tramo: {(currentDistance / 1000).toFixed(2)} m ({Math.round(currentDistance)} mm)
               </span>
               <span className="text-blue-200 font-normal">| Ø{selectedDiameter} mm</span>
@@ -1636,12 +1661,12 @@ export const Viewport: React.FC<ViewportProps> = ({
         {/* LECTURA EN VIVO DE COORDENADAS (X, Y, Z) */}
         <div className="bg-[#1b2028]/90 backdrop-blur-md border border-[#2a323d] px-3 py-1 rounded-md font-mono text-xs text-white flex items-center space-x-3">
           <span className="text-[#8b949e]">Coord:</span>
-          <span className="text-cyan-400">X: {Math.round(worldCoord.x)} mm</span>
-          <span className="text-emerald-400">Z: {Math.round(worldCoord.z)} mm</span>
+          <span ref={coordXRef} className="text-cyan-400">X: 0 mm</span>
+          <span ref={coordZRef} className="text-emerald-400">Z: 0 mm</span>
           <span className="text-[#8b949e]">| Tubos: <b className="text-white">{pipes.length}</b></span>
           <span className="text-[#8b949e]">| Piezas: <b className="text-cyan-400">{fittings.length}</b></span>
         </div>
       </div>
     </div>
   );
-};
+});

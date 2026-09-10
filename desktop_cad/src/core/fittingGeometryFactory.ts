@@ -77,7 +77,36 @@ class Elbow45Curve extends THREE.Curve<THREE.Vector3> {
  * Todas las geometrías yacen coherentemente en el plano horizontal XZ (Y = 0).
  */
 export class FittingGeometryFactory {
-  public static createGeometry(fitting: FittingDefinition): { geometry: THREE.BufferGeometry; color: number } {
+  private static cache = new Map<
+    string,
+    { geometry: THREE.BufferGeometry; edgesGeometry: THREE.BufferGeometry; color: number }
+  >();
+
+  public static createGeometry(fitting: FittingDefinition): {
+    geometry: THREE.BufferGeometry;
+    edgesGeometry: THREE.BufferGeometry;
+    color: number;
+  } {
+    const cached = this.cache.get(fitting.id);
+    if (cached) {
+      return cached;
+    }
+
+    const generated = this.generateGeometry(fitting);
+    const edgesGeometry = new THREE.EdgesGeometry(generated.geometry, 25);
+    const result = {
+      geometry: generated.geometry,
+      edgesGeometry,
+      color: generated.color,
+    };
+    this.cache.set(fitting.id, result);
+    return result;
+  }
+
+  private static generateGeometry(fitting: FittingDefinition): {
+    geometry: THREE.BufferGeometry;
+    color: number;
+  } {
     const d = fitting.nominalDiameter;
     const r = d / 2;
 

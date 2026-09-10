@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Toolbar } from './components/Toolbar';
 import { CatalogSidebar } from './components/CatalogSidebar';
 import { Viewport } from './components/Viewport';
@@ -202,10 +202,39 @@ export function App() {
     engineRef.current.updateGrid(span);
   };
 
-  const handleZoomFit = () => {
+  const handlePipeAdded = useCallback((newPipe: PipeSegment) => {
+    setPipes((prev) => [...prev, newPipe]);
+  }, []);
+
+  const handlePipeUpdated = useCallback((updatedPipe: PipeSegment) => {
+    setPipes((prev) => prev.map((p) => (p.id === updatedPipe.id ? updatedPipe : p)));
+  }, []);
+
+  const handlePipeDeleted = useCallback((pipeId: string) => {
+    setPipes((prev) => prev.filter((p) => p.id !== pipeId));
+  }, []);
+
+  const handleFittingPlaced = useCallback((newFitting: PlacedFitting) => {
+    setFittings((prev) => [...prev, newFitting]);
+  }, []);
+
+  const handleFittingUpdated = useCallback((updatedFitting: PlacedFitting) => {
+    setFittings((prev) => prev.map((f) => (f.id === updatedFitting.id ? updatedFitting : f)));
+  }, []);
+
+  const handleFittingDeleted = useCallback((fittingId: string) => {
+    setFittings((prev) => prev.filter((f) => f.id !== fittingId));
+  }, []);
+
+  const handleCancelFittingPlacement = useCallback(() => {
+    setSelectedFitting(null);
+    setCurrentTool('select');
+  }, []);
+
+  const handleZoomFit = useCallback(() => {
     if (!engineRef.current) return;
     engineRef.current.zoomExtents();
-  };
+  }, []);
 
   const handleToggleDxfVisible = () => {
     if (!engineRef.current) return;
@@ -274,25 +303,14 @@ export function App() {
           performance={performance}
           selectedDiameter={selectedDiameter}
           selectedFitting={selectedFitting}
-          onCancelFittingPlacement={() => {
-            setSelectedFitting(null);
-            setCurrentTool('select');
-          }}
+          onCancelFittingPlacement={handleCancelFittingPlacement}
           onFpsUpdate={setFps}
-          onPipeAdded={(newPipe) => setPipes((prev) => [...prev, newPipe])}
-          onPipeUpdated={(updatedPipe) =>
-            setPipes((prev) => prev.map((p) => (p.id === updatedPipe.id ? updatedPipe : p)))
-          }
-          onPipeDeleted={(pipeId) =>
-            setPipes((prev) => prev.filter((p) => p.id !== pipeId))
-          }
-          onFittingPlaced={(newFitting) => setFittings((prev) => [...prev, newFitting])}
-          onFittingUpdated={(updatedFitting) =>
-            setFittings((prev) => prev.map((f) => (f.id === updatedFitting.id ? updatedFitting : f)))
-          }
-          onFittingDeleted={(fittingId) =>
-            setFittings((prev) => prev.filter((f) => f.id !== fittingId))
-          }
+          onPipeAdded={handlePipeAdded}
+          onPipeUpdated={handlePipeUpdated}
+          onPipeDeleted={handlePipeDeleted}
+          onFittingPlaced={handleFittingPlaced}
+          onFittingUpdated={handleFittingUpdated}
+          onFittingDeleted={handleFittingDeleted}
           pipes={pipes}
           fittings={fittings}
           engineRef={engineRef}
