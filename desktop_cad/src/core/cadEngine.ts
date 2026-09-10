@@ -175,6 +175,7 @@ export class CADEngine {
 
   // Línea de rastreo y alineación magnética (Object Snap Tracking / Simetría)
   private alignmentLine: THREE.Line;
+  private isOsnapEnabled = true;
 
   private groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   private previewPipeMesh: THREE.Mesh | null = null;
@@ -1745,7 +1746,12 @@ export class CADEngine {
       // Calcular posición real en milímetros sobre el plano horizontal
       const worldPoint = this.getWorldPointFromMouse(e.clientX, e.clientY);
       if (worldPoint && this.onMouseMoveWorld) {
-        const snap = this.getSnapPoint(worldPoint, 25);
+        const bypassSnap = e.shiftKey || e.altKey || !this.isOsnapEnabled;
+        const snap = bypassSnap ? null : this.getSnapPoint(worldPoint, 25);
+        if (bypassSnap) {
+          if (this.snapMarker) this.snapMarker.visible = false;
+          if (this.highlightLine) this.highlightLine.visible = false;
+        }
         this.onMouseMoveWorld(
           snap ? { x: snap.point.x, y: snap.point.y, z: snap.point.z } : { x: worldPoint.x, y: 0, z: worldPoint.z },
           snap
@@ -2117,7 +2123,11 @@ export class CADEngine {
           if (dist < effectiveThreshold && dist < closestDist) {
             closestDist = dist;
 
-            if (t < 0.1) {
+            const distFromStart = t * len;
+            const distFromEnd = (1 - t) * len;
+            const endSnapRadius = Math.min(25, Math.max(10, unitsPerPixel * 4));
+
+            if (distFromStart <= endSnapRadius) {
               result = {
                 point: { x: s.x, y: s.y, z: s.z },
                 type: 'pipe_end',
@@ -2132,7 +2142,7 @@ export class CADEngine {
                   projectionT: 0,
                 },
               };
-            } else if (t > 0.9) {
+            } else if (distFromEnd <= endSnapRadius) {
               result = {
                 point: { x: e.x, y: e.y, z: e.z },
                 type: 'pipe_end',
@@ -2148,7 +2158,7 @@ export class CADEngine {
                 },
               };
             } else {
-              // Enganche magnético en cualquier punto intermedio del tubo
+              // Enganche magnético continuo en cualquier punto intermedio del tubo
               result = {
                 point: { x: qx, y: (s.y + e.y) / 2, z: qz },
                 type: 'pipe_body',
@@ -2189,7 +2199,11 @@ export class CADEngine {
         if (dist < closestDist) {
           closestDist = dist;
 
-          if (t < 0.15) {
+          const distFromA = t * segLen;
+          const distFromB = (1 - t) * segLen;
+          const endSnapRadius = Math.min(25, Math.max(10, unitsPerPixel * 4));
+
+          if (distFromA <= endSnapRadius) {
             result = {
               point: { x: ax, y: 0, z: az },
               type: 'dxf_endpoint',
@@ -2197,7 +2211,7 @@ export class CADEngine {
               pipeDirection: segDir,
               pipeAngle: segAngle,
             };
-          } else if (t > 0.85) {
+          } else if (distFromB <= endSnapRadius) {
             result = {
               point: { x: bx, y: 0, z: bz },
               type: 'dxf_endpoint',
@@ -2205,7 +2219,7 @@ export class CADEngine {
               pipeDirection: segDir,
               pipeAngle: segAngle,
             };
-          } else if (Math.abs(t - 0.5) < 0.08) {
+          } else if (Math.abs(distFromA - segLen / 2) <= endSnapRadius) {
             result = {
               point: { x: (ax + bx) / 2, y: 0, z: (az + bz) / 2 },
               type: 'dxf_midpoint',
@@ -2256,6 +2270,19 @@ export class CADEngine {
     }
 
     return result;
+  }
+
+  public setOsnapEnabled(enabled: boolean) {
+    this.isOsnapEnabled = enabled;
+    if (!enabled) {
+      if (this.snapMarker) this.snapMarker.visible = false;
+      if (this.highlightLine) this.highlightLine.visible = false;
+    }
+    this.requestRender(2);
+  }
+
+  public getOsnapEnabled(): boolean {
+    return this.isOsnapEnabled;
   }
 
   public handleResize() {

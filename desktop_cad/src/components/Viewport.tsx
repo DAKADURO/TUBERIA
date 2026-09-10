@@ -15,7 +15,7 @@ import {
 import * as THREE from 'three';
 import { FittingGeometryFactory } from '../core/fittingGeometryFactory';
 import { AIRPIPE_CATALOG } from '../catalog/airpipeCatalog';
-import { Crosshair, Move, RotateCw, RotateCcw, ZoomIn, Ruler, Compass, Zap, Box, Trash2 } from 'lucide-react';
+import { Crosshair, Move, RotateCw, RotateCcw, ZoomIn, Ruler, Compass, Zap, Box, Trash2, Magnet } from 'lucide-react';
 
 interface ViewportProps {
   tool: ToolMode;
@@ -67,6 +67,18 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
   const [routingStart, setRoutingStart] = useState<Vector3D | null>(null);
   const [isOrtho, setIsOrtho] = useState<boolean>(true); // Modo Ortogonal
   const [isAutoTraceLine, setIsAutoTraceLine] = useState<boolean>(true); // Auto-trazar líneas del plano en 1 clic
+  const [isOsnap, setIsOsnap] = useState<boolean>(true); // Modo Imán / Snap Inteligente
+  const isOsnapRef = useRef<boolean>(true);
+
+  const toggleOsnap = () => {
+    setIsOsnap((prev) => {
+      const next = !prev;
+      isOsnapRef.current = next;
+      engineRef.current?.setOsnapEnabled(next);
+      return next;
+    });
+  };
+
   const [currentDistance, setCurrentDistance] = useState<number>(0);
 
   // Estados de orientación de accesorios (rotación continua 3D con roll y plano)
@@ -939,7 +951,8 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
 
     // Clic izquierdo en modo Colocar Accesorio
     if (e.button === 0 && tool === 'place_fitting' && selectedFittingRef.current) {
-      const snap = currentSnapRef.current;
+      const bypassSnap = e.shiftKey || e.altKey || !isOsnapRef.current;
+      const snap = bypassSnap ? null : currentSnapRef.current;
       const { rotation, quaternion, cornerPlacePos } = computeFittingPlacementRotation(snap, worldCoordRef.current);
       const placePos = cornerPlacePos
         ? cornerPlacePos
@@ -960,8 +973,8 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
       // Determinar punto focal o vértice del accesorio
       const V: Vector3D = snap?.cornerInfo?.V || (snap ? snap.point : { ...worldCoordRef.current });
 
-      // CASO 1: Si es un Codo o se colocó en esquina o extremo de tubería
-      if (isElbow || snap?.type === 'pipe_corner' || snap?.type === 'dxf_corner' || snap?.type === 'pipe_end' || snap?.type === 'dxf_endpoint') {
+      // CASO 1: Si es un Codo o se colocó en esquina de tubería
+      if (isElbow || snap?.type === 'pipe_corner' || snap?.type === 'dxf_corner') {
         // Buscar TODAS las tuberías 3D en pipesRef.current que toquen el vértice V
         const threshold = Math.max(150, Larm * 1.3);
         const connectedPipes: { pipe: PipeSegment; endType: 'start' | 'end'; dirAwayFromV: Vector3D }[] = [];
@@ -1010,46 +1023,77 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
         });
       }
 
-      // CASO 2: Si se colocó sobre el cuerpo de una tubería 3D (snap.type === 'pipe_body'):
-      // Intercalar limpiamente el accesorio dividiendo la tubería en 2 tramos conectados a sus bocas
-      if (snap?.type === 'pipe_body' && snap.pipeInfo) {
-        const targetPipe = pipesRef.current.find((p) => p.id === snap.pipeInfo?.pipeId);
-        if (targetPipe && fitting.ports.length >= 2) {
-          if (fitting.category === 'tee' || fitting.category === 'valve' || fitting.category === 'coupling') {
-            const p0Local = fitting.ports[0].position;
-            const p1Local = fitting.ports[1].position;
-            const v0 = new THREE.Vector3(p0Local.x, p0Local.y, p0Local.z).applyQuaternion(quaternion);
-            const v1 = new THREE.Vector3(p1Local.x, p1Local.y, p1Local.z).applyQuaternion(quaternion);
+      // CASO 2: Si se colocó sobre el cuerpo de una tubería 3D (o libremente cerca del eje del tubo)
+      let targetPipe = (snap?.type === 'pipe_body' && snap.pipeInfo)
+        ? pipesRef.current.find((p) => p.id === snap.pipeInfo?.pipeId)
+        : null;
 
-            const worldP0 = { x: placePos.x + v0.x, y: placePos.y + v0.y, z: placePos.z + v0.z };
-            const worldP1 = { x: placePos.x + v1.x, y: placePos.y + v1.y, z: placePos.z + v1.z };
+      // Si no hubo snap pero el punto cae sobre el eje de alguna tubería dentro del radio del tubo:
+      if (!targetPipe && !isElbow && fitting.ports.length >= 2) {
+        for (const p of pipesRef.current) {
+          const vx = p.end.x - p.start.x;
+          const vz = p.end.z - p.start.z;
+          const lenSq = vx * vx + vz * vz;
+          if (lenSq < 1) continue;
+          const t = Math.max(0, Math.min(1, ((placePos.x - p.start.x) * vx + (placePos.z - p.start.z) * vz) / lenSq));
+          const qx = p.start.x + t * vx;
+          const qz = p.start.z + t * vz;
+          if (Math.hypot(placePos.x - qx, placePos.z - qz) <= Math.max(35, p.diameter * 1.1)) {
+            targetPipe = p;
+            break;
+          }
+        }
+      }
 
-            const d0Start = Math.hypot(worldP0.x - targetPipe.start.x, worldP0.z - targetPipe.start.z);
-            const d1Start = Math.hypot(worldP1.x - targetPipe.start.x, worldP1.z - targetPipe.start.z);
+      if (targetPipe && fitting.ports.length >= 2) {
+        if (fitting.category === 'tee' || fitting.category === 'valve' || fitting.category === 'coupling') {
+          const p0Local = fitting.ports[0].position;
+          const p1Local = fitting.ports[1].position;
+          const v0 = new THREE.Vector3(p0Local.x, p0Local.y, p0Local.z).applyQuaternion(quaternion);
+          const v1 = new THREE.Vector3(p1Local.x, p1Local.y, p1Local.z).applyQuaternion(quaternion);
 
-            const portNearStart = d0Start <= d1Start ? worldP0 : worldP1;
-            const portNearEnd = d0Start <= d1Start ? worldP1 : worldP0;
+          const worldP0 = { x: placePos.x + v0.x, y: placePos.y + v0.y, z: placePos.z + v0.z };
+          const worldP1 = { x: placePos.x + v1.x, y: placePos.y + v1.y, z: placePos.z + v1.z };
 
-            const len1 = Math.hypot(portNearStart.x - targetPipe.start.x, portNearStart.z - targetPipe.start.z);
-            const len2 = Math.hypot(targetPipe.end.x - portNearEnd.x, targetPipe.end.z - portNearEnd.z);
+          const d0Start = Math.hypot(worldP0.x - targetPipe.start.x, worldP0.z - targetPipe.start.z);
+          const d1Start = Math.hypot(worldP1.x - targetPipe.start.x, worldP1.z - targetPipe.start.z);
 
-            if (len1 >= 10 && len2 >= 10) {
-              const updatedLen = Math.round(len1);
-              engineRef.current?.updatePipe(targetPipe.id, targetPipe.start, portNearStart);
-              if (onPipeUpdated) {
-                onPipeUpdated({ ...targetPipe, end: portNearStart, length: updatedLen });
-              }
+          const portNearStart = d0Start <= d1Start ? worldP0 : worldP1;
+          const portNearEnd = d0Start <= d1Start ? worldP1 : worldP0;
 
-              const splitId = `pipe_${Date.now()}_split`;
-              const splitLen = Math.round(len2);
-              engineRef.current?.addPipe(portNearEnd, targetPipe.end, targetPipe.diameter, splitId);
-              onPipeAdded({
-                id: splitId,
-                start: portNearEnd,
-                end: targetPipe.end,
-                diameter: targetPipe.diameter,
-                length: splitLen,
-              });
+          const len1 = Math.hypot(portNearStart.x - targetPipe.start.x, portNearStart.z - targetPipe.start.z);
+          const len2 = Math.hypot(targetPipe.end.x - portNearEnd.x, targetPipe.end.z - portNearEnd.z);
+
+          if (len1 >= 10 && len2 >= 10) {
+            const updatedLen = Math.round(len1);
+            engineRef.current?.updatePipe(targetPipe.id, targetPipe.start, portNearStart);
+            if (onPipeUpdated) {
+              onPipeUpdated({ ...targetPipe, end: portNearStart, length: updatedLen });
+            }
+
+            const splitId = `pipe_${Date.now()}_split`;
+            const splitLen = Math.round(len2);
+            engineRef.current?.addPipe(portNearEnd, targetPipe.end, targetPipe.diameter, splitId);
+            onPipeAdded({
+              id: splitId,
+              start: portNearEnd,
+              end: targetPipe.end,
+              diameter: targetPipe.diameter,
+              length: splitLen,
+            });
+          } else if (len1 >= 10 && len2 < 10) {
+            // El accesorio quedó al final del tubo: recortar el final del tubo hasta la boca
+            const updatedLen = Math.round(len1);
+            engineRef.current?.updatePipe(targetPipe.id, targetPipe.start, portNearStart);
+            if (onPipeUpdated) {
+              onPipeUpdated({ ...targetPipe, end: portNearStart, length: updatedLen });
+            }
+          } else if (len1 < 10 && len2 >= 10) {
+            // El accesorio quedó al inicio del tubo: recortar el inicio del tubo hasta la boca
+            const updatedLen = Math.round(len2);
+            engineRef.current?.updatePipe(targetPipe.id, portNearEnd, targetPipe.end);
+            if (onPipeUpdated) {
+              onPipeUpdated({ ...targetPipe, start: portNearEnd, length: updatedLen });
             }
           }
         }
@@ -1174,6 +1218,9 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
         } else if (toolRef.current === 'place_fitting') {
           invertPlacementSide();
         }
+      } else if (e.key === 'F3') {
+        e.preventDefault();
+        toggleOsnap();
       } else if (e.key === 'F8') {
         e.preventDefault();
         setIsOrtho((prev) => !prev);
@@ -1628,6 +1675,19 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
         >
           <Compass className="w-3.5 h-3.5" />
           <span>Orto (F8): {isOrtho ? 'ON' : 'OFF'}</span>
+        </button>
+
+        <button
+          onClick={() => toggleOsnap()}
+          title="Imán / OSNAP Inteligente (F3): Desactívalo o mantén Shift/Alt para colocar accesorios y trazar 100% libre en cualquier punto"
+          className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center space-x-1.5 transition shadow-lg border cursor-pointer ${
+            isOsnap
+              ? 'bg-cyan-600/20 text-cyan-400 border-cyan-500/50 shadow-cyan-500/10'
+              : 'bg-red-950/40 text-red-400 border-red-500/40 hover:text-white'
+          }`}
+        >
+          <Magnet className="w-3.5 h-3.5" />
+          <span>OSNAP (F3): {isOsnap ? 'ON' : 'LIBRE (OFF)'}</span>
         </button>
       </div>
 
