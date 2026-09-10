@@ -9,6 +9,8 @@ export type PerformanceProfile = 'eco' | 'balanced' | 'ultra';
 
 export type CameraView = 'perspective_3d' | 'top_2d' | 'front_2d' | 'side_2d';
 
+export type BackgroundTheme = 'white' | 'dark';
+
 export type ToolMode = 
   | 'select' 
   | 'route_pipe' 

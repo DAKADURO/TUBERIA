@@ -10,12 +10,13 @@ import {
   ConnectionPort,
   Vector3D,
   SnapResult,
-  FittingDefinition
+  FittingDefinition,
+  BackgroundTheme
 } from '../types/cad';
 import * as THREE from 'three';
 import { FittingGeometryFactory } from '../core/fittingGeometryFactory';
 import { AIRPIPE_CATALOG } from '../catalog/airpipeCatalog';
-import { Crosshair, Move, RotateCw, RotateCcw, ZoomIn, Ruler, Compass, Zap, Box, Trash2, Magnet } from 'lucide-react';
+import { Crosshair, Move, RotateCw, RotateCcw, ZoomIn, Ruler, Compass, Zap, Box, Trash2, Magnet, Sun, Moon } from 'lucide-react';
 
 interface ViewportProps {
   tool: ToolMode;
@@ -24,6 +25,8 @@ interface ViewportProps {
   performance: PerformanceProfile;
   selectedDiameter: number;
   selectedFitting: FittingDefinition | null;
+  bgTheme?: BackgroundTheme;
+  onToggleBgTheme?: () => void;
   onFpsUpdate: (fps: number) => void;
   onPipeAdded: (pipe: PipeSegment) => void;
   onPipeUpdated?: (pipe: PipeSegment) => void;
@@ -45,6 +48,8 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
   performance,
   selectedDiameter,
   selectedFitting,
+  bgTheme = 'white',
+  onToggleBgTheme,
   onFpsUpdate,
   onPipeAdded,
   onPipeUpdated,
@@ -587,6 +592,7 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
 
     const engine = new CADEngine({
       container: containerRef.current,
+      bgTheme,
       onFpsUpdate,
       onPortHover: () => {},
       onDblClickZoomFit,
@@ -1263,7 +1269,7 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
 
   return (
     <div 
-      className="relative flex-1 h-[calc(100vh-3.5rem)] bg-[#14171c] overflow-hidden"
+      className={`relative flex-1 h-[calc(100vh-3.5rem)] ${bgTheme === 'white' ? 'bg-[#ffffff]' : 'bg-[#14171c]'} overflow-hidden`}
       onContextMenu={(e) => e.preventDefault()}
     >
       {/* Canvas Three.js */}
@@ -1689,6 +1695,30 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
           <Magnet className="w-3.5 h-3.5" />
           <span>OSNAP (F3): {isOsnap ? 'ON' : 'LIBRE (OFF)'}</span>
         </button>
+
+        {onToggleBgTheme && (
+          <button
+            onClick={onToggleBgTheme}
+            title="Alternar fondo del lienzo CAD (Blanco / Oscuro)"
+            className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center space-x-1.5 transition shadow-lg border cursor-pointer ${
+              bgTheme === 'white'
+                ? 'bg-amber-500/20 text-amber-300 border-amber-400/60 shadow-amber-500/10'
+                : 'bg-[#1b2028]/80 text-[#8b949e] border-[#2a323d] hover:text-white'
+            }`}
+          >
+            {bgTheme === 'white' ? (
+              <>
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-white">Fondo: BLANCO</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-3.5 h-3.5 text-blue-400" />
+                <span>Fondo: OSCURO</span>
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       {/* HUD INFERIOR: COORDENADAS CAD EXACTAS Y ATAJOS */}

@@ -3,7 +3,8 @@ import {
   ToolMode, 
   VisualMode, 
   CameraView, 
-  PerformanceProfile 
+  PerformanceProfile,
+  BackgroundTheme
 } from '../types/cad';
 import { 
   MousePointer, 
@@ -19,7 +20,9 @@ import {
   Compass, 
   Save, 
   FolderOpen,
-  Maximize2
+  Maximize2,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -31,6 +34,8 @@ interface ToolbarProps {
   onSelectCameraView: (view: CameraView) => void;
   performance: PerformanceProfile;
   onSelectPerformance: (perf: PerformanceProfile) => void;
+  bgTheme?: BackgroundTheme;
+  onToggleBgTheme?: () => void;
   fps: number;
   dxfLoaded: boolean;
   dxfVisible: boolean;
@@ -51,6 +56,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onSelectCameraView,
   performance,
   onSelectPerformance,
+  bgTheme = 'white',
+  onToggleBgTheme,
   fps,
   dxfLoaded,
   dxfVisible,
@@ -213,6 +220,30 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <FileText className="w-3.5 h-3.5" />
           <span>Despiece (BOM)</span>
         </button>
+
+        {onToggleBgTheme && (
+          <button
+            onClick={onToggleBgTheme}
+            title="Alternar fondo del lienzo CAD (Blanco / Oscuro)"
+            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-md transition text-xs border cursor-pointer ${
+              bgTheme === 'white'
+                ? 'bg-amber-500/20 text-amber-300 border-amber-400/50 hover:bg-amber-500/30'
+                : 'bg-[#242b36] hover:bg-[#2e3745] text-[#8b949e] border-[#2a323d] hover:text-white'
+            }`}
+          >
+            {bgTheme === 'white' ? (
+              <>
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+                <span className="font-semibold text-white">Fondo: Blanco</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-3.5 h-3.5 text-blue-400" />
+                <span>Fondo: Oscuro</span>
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       {/* 6. MONITOR DE RENDIMIENTO / FPS / GPU */}

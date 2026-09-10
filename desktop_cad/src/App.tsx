@@ -9,10 +9,11 @@ import {
   VisualMode, 
   CameraView, 
   PerformanceProfile, 
-  FittingDefinition, 
+  FittingDefinition,
   PipeSegment, 
   PlacedFitting,
-  DxfBlueprint 
+  DxfBlueprint,
+  BackgroundTheme
 } from './types/cad';
 import { CADEngine } from './core/cadEngine';
 import { FittingGeometryFactory } from './core/fittingGeometryFactory';
@@ -24,6 +25,9 @@ export function App() {
   const [visualMode, setVisualMode] = useState<VisualMode>('shaded_edges');
   const [cameraView, setCameraView] = useState<CameraView>('perspective_3d');
   const [performance, setPerformance] = useState<PerformanceProfile>('balanced');
+  const [bgTheme, setBgTheme] = useState<BackgroundTheme>(() => {
+    return (localStorage.getItem('pipecad_bg_theme') as BackgroundTheme) || 'white';
+  });
   const [selectedDiameter, setSelectedDiameter] = useState<number>(50); // 50mm (2") por defecto
   const [fps, setFps] = useState<number>(60);
 
@@ -278,6 +282,15 @@ export function App() {
     }
   };
 
+  const handleToggleBgTheme = useCallback(() => {
+    setBgTheme((prev) => {
+      const next = prev === 'white' ? 'dark' : 'white';
+      localStorage.setItem('pipecad_bg_theme', next);
+      engineRef.current?.setBackgroundTheme(next);
+      return next;
+    });
+  }, []);
+
   return (
     <div className="flex flex-col h-screen w-screen bg-[#14171c] select-none">
       {/* Barra de herramientas superior */}
@@ -295,6 +308,8 @@ export function App() {
         onSelectCameraView={setCameraView}
         performance={performance}
         onSelectPerformance={setPerformance}
+        bgTheme={bgTheme}
+        onToggleBgTheme={handleToggleBgTheme}
         fps={fps}
         dxfLoaded={dxfLoaded}
         dxfVisible={dxfVisible}
@@ -322,6 +337,8 @@ export function App() {
           performance={performance}
           selectedDiameter={selectedDiameter}
           selectedFitting={selectedFitting}
+          bgTheme={bgTheme}
+          onToggleBgTheme={handleToggleBgTheme}
           onCancelFittingPlacement={handleCancelFittingPlacement}
           onFpsUpdate={setFps}
           onPipeAdded={handlePipeAdded}

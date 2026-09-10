@@ -6,7 +6,8 @@ import {
   ConnectionPort, 
   Vector3D,
   SnapResult,
-  DxfLayerInfo 
+  DxfLayerInfo,
+  BackgroundTheme
 } from '../types/cad';
 import { cleanDxfText } from './dxfService';
 
@@ -22,17 +23,24 @@ export interface DxfTextItem {
   color: string;
 }
 
-function getLegibleColor(hexStr?: string, defaultColor = '#58a6ff'): string {
-  if (!hexStr || !hexStr.startsWith('#')) return defaultColor;
+function getLegibleColor(hexStr?: string, defaultColor = '#58a6ff', isWhiteBg = false): string {
+  if (!hexStr || !hexStr.startsWith('#')) return isWhiteBg ? '#1e293b' : defaultColor;
   const hex = hexStr.replace('#', '');
-  if (hex.length < 6) return defaultColor;
+  if (hex.length < 6) return isWhiteBg ? '#1e293b' : defaultColor;
   const r = parseInt(hex.substring(0, 2), 16) || 0;
   const g = parseInt(hex.substring(2, 4), 16) || 0;
   const b = parseInt(hex.substring(4, 6), 16) || 0;
   const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-  // Si el color es negro o demasiado oscuro para el fondo #14171c, usar blanco/gris claro CAD
-  if (luminance < 60) {
-    return '#e6edf3';
+  if (isWhiteBg) {
+    // Si el color es blanco o muy claro, usar azul marino oscuro CAD #0f172a
+    if (luminance > 180) {
+      return '#0f172a';
+    }
+  } else {
+    // Si el color es negro o demasiado oscuro para el fondo #14171c, usar blanco/gris claro CAD
+    if (luminance < 60) {
+      return '#e6edf3';
+    }
   }
   return hexStr;
 }
@@ -123,6 +131,7 @@ export class SpatialHashGrid2D {
 
 export interface CADEngineOptions {
   container: HTMLElement;
+  bgTheme?: BackgroundTheme;
   onFpsUpdate?: (fps: number) => void;
   onPortHover?: (port: ConnectionPort | null) => void;
   onDblClickZoomFit?: () => void;
@@ -136,6 +145,12 @@ export class CADEngine {
   private perspectiveCamera: THREE.PerspectiveCamera;
   private orthographicCamera: THREE.OrthographicCamera;
   private currentCamera: THREE.Camera;
+
+  // Tema de fondo del lienzo CAD (Blanco / Oscuro)
+  private bgTheme: BackgroundTheme = 'white';
+  private currentGridSpan = 10000;
+  private lastDxfEntities: any[] | null = null;
+  private lastDxfOptions: any = null;
 
   // Render-on-Demand (Dirty Flag) para consumo GPU casi 0% en reposo
   private needsRender = true;
@@ -208,6 +223,7 @@ export class CADEngine {
 
   constructor(options: CADEngineOptions) {
     this.container = options.container;
+    this.bgTheme = options.bgTheme || 'white';
     this.onFpsUpdate = options.onFpsUpdate;
     this.onPortHover = options.onPortHover;
     this.onDblClickZoomFit = options.onDblClickZoomFit;
@@ -218,7 +234,7 @@ export class CADEngine {
 
     // 1. ESCENA
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x14171c); // Fondo industrial oscuro
+    this.scene.background = new THREE.Color(this.bgTheme === 'white' ? 0xffffff : 0x14171c);
 
     // 2. RENDERER CON FORZADO DE ALTO RENDIMIENTO
     this.renderer = new THREE.WebGLRenderer({
@@ -281,7 +297,13 @@ export class CADEngine {
 
     // 6. REJILLA CAD INDUSTRIAL Y EJES
     // Rejilla de 10x10 metros dividida cada 100mm / 1000mm
-    this.gridHelper = new THREE.GridHelper(10000, 100, 0x007acc, 0x2a323d);
+    const isWhite = this.bgTheme === 'white';
+    this.gridHelper = new THREE.GridHelper(
+      10000, 
+      100, 
+      isWhite ? 0x94a3b8 : 0x007acc, 
+      isWhite ? 0xe2e8f0 : 0x2a323d
+    );
     this.gridHelper.position.y = -0.5;
     this.scene.add(this.gridHelper);
 
@@ -291,7 +313,12 @@ export class CADEngine {
 
     // Marcador OSNAP visual (caja verde magnética de precisión CAD)
     const snapGeo = new THREE.BoxGeometry(1, 1, 1);
-    const snapMat = new THREE.MeshBasicMaterial({ color: 0x00ff88, depthTest: false, transparent: true, opacity: 0.9 });
+    const snapMat = new THREE.MeshBasicMaterial({ 
+      color: isWhite ? 0x059669 : 0x00ff88, 
+      depthTest: false, 
+      transparent: true, 
+      opacity: 0.9 
+    });
     this.snapMarker = new THREE.Mesh(snapGeo, snapMat);
     this.snapMarker.renderOrder = 999;
     this.snapMarker.visible = false;
@@ -300,7 +327,11 @@ export class CADEngine {
     // Línea de resaltado para selección de líneas del plano DXF
     const hlGeo = new THREE.BufferGeometry();
     hlGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3));
-    const hlMat = new THREE.LineBasicMaterial({ color: 0xffd700, depthTest: false, linewidth: 3 });
+    const hlMat = new THREE.LineBasicMaterial({ 
+      color: isWhite ? 0xd97706 : 0xffd700, 
+      depthTest: false, 
+      linewidth: 3 
+    });
     this.highlightLine = new THREE.Line(hlGeo, hlMat);
     this.highlightLine.renderOrder = 998;
     this.highlightLine.visible = false;
@@ -341,7 +372,7 @@ export class CADEngine {
     const alignGeo = new THREE.BufferGeometry();
     alignGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3));
     const alignMat = new THREE.LineDashedMaterial({
-      color: 0x00ffff,
+      color: isWhite ? 0x0284c7 : 0x00ffff,
       dashSize: 40,
       gapSize: 25,
       depthTest: false,
@@ -487,7 +518,7 @@ export class CADEngine {
       if (type === 'wireframe') {
         mat = new THREE.MeshBasicMaterial({ color, wireframe: true });
       } else if (type === 'hidden_line') {
-        mat = new THREE.MeshBasicMaterial({ color: 0x1b2028 });
+        mat = new THREE.MeshBasicMaterial({ color: this.bgTheme === 'white' ? 0xffffff : 0x1b2028 });
       } else if (type === 'flat') {
         mat = new THREE.MeshLambertMaterial({ color, flatShading: true });
       } else if (type === 'shaded_edges') {
@@ -507,6 +538,7 @@ export class CADEngine {
   }
 
   private applyVisualModeToGroup(group: THREE.Group) {
+    const isWhite = this.bgTheme === 'white';
     group.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         const isPipe = child.userData.isPipe;
@@ -522,12 +554,12 @@ export class CADEngine {
         } else if (this.currentVisualMode === 'hidden_line') {
           if (child.children.length > 0) {
             child.children[0].visible = true;
-            (child.children[0] as any).material.color?.setHex(0xffffff);
+            (child.children[0] as any).material.color?.setHex(isWhite ? 0x000000 : 0xffffff);
           }
         } else if (this.currentVisualMode === 'shaded_edges') {
           if (child.children.length > 0) {
             child.children[0].visible = true;
-            (child.children[0] as any).material.color?.setHex(0x11161d);
+            (child.children[0] as any).material.color?.setHex(isWhite ? 0x081b33 : 0x11161d);
           }
         }
       }
@@ -560,7 +592,10 @@ export class CADEngine {
 
     // Añadir aristas nítidas de CAD
     const edgesGeo = new THREE.EdgesGeometry(geometry, 25);
-    const edgesLine = new THREE.LineSegments(edgesGeo, new THREE.LineBasicMaterial({ color: 0x0e2035, linewidth: 1 }));
+    const edgesLine = new THREE.LineSegments(
+      edgesGeo, 
+      new THREE.LineBasicMaterial({ color: this.bgTheme === 'white' ? 0x081b33 : 0x0e2035, linewidth: 1 })
+    );
     mesh.add(edgesLine);
 
     this.pipesGroup.add(mesh);
@@ -604,7 +639,10 @@ export class CADEngine {
       mesh.remove(c);
     }
     const edgesGeo = new THREE.EdgesGeometry(geometry, 25);
-    const edgesLine = new THREE.LineSegments(edgesGeo, new THREE.LineBasicMaterial({ color: 0x0e2035, linewidth: 1 }));
+    const edgesLine = new THREE.LineSegments(
+      edgesGeo, 
+      new THREE.LineBasicMaterial({ color: this.bgTheme === 'white' ? 0x081b33 : 0x0e2035, linewidth: 1 })
+    );
     mesh.add(edgesLine);
 
     if (this.selectedPipeHighlight) {
@@ -644,7 +682,7 @@ export class CADEngine {
 
     const mesh = this.pipesGroup.children.find((c) => c.userData?.id === pipeId) as THREE.Mesh;
     if (mesh) {
-      this.selectedPipeHighlight = new THREE.BoxHelper(mesh, 0x00d4ff);
+      this.selectedPipeHighlight = new THREE.BoxHelper(mesh, this.bgTheme === 'white' ? 0x0284c7 : 0x00d4ff);
       this.scene.add(this.selectedPipeHighlight);
       this.requestRender(3);
     }
@@ -684,7 +722,10 @@ export class CADEngine {
 
     // Líneas de aristas CAD
     const edgesGeo = edgesGeometry || new THREE.EdgesGeometry(geometry, 25);
-    const edgesLine = new THREE.LineSegments(edgesGeo, new THREE.LineBasicMaterial({ color: 0x1a222d }));
+    const edgesLine = new THREE.LineSegments(
+      edgesGeo, 
+      new THREE.LineBasicMaterial({ color: this.bgTheme === 'white' ? 0x081b33 : 0x1a222d })
+    );
     mesh.add(edgesLine);
 
     this.fittingsGroup.add(mesh);
@@ -741,7 +782,7 @@ export class CADEngine {
 
     const mesh = this.fittingsGroup.children.find((c) => c.userData?.id === fittingId) as THREE.Mesh;
     if (mesh) {
-      this.selectedFittingHighlight = new THREE.BoxHelper(mesh, 0x00ffff);
+      this.selectedFittingHighlight = new THREE.BoxHelper(mesh, this.bgTheme === 'white' ? 0x0284c7 : 0x00ffff);
       this.scene.add(this.selectedFittingHighlight);
       this.requestRender(3);
     }
@@ -807,12 +848,16 @@ export class CADEngine {
       layers?: DxfLayerInfo[];
     } = {}
   ) {
+    this.lastDxfEntities = entities;
+    this.lastDxfOptions = options;
+
     this.disposeHierarchy(this.dxfGroup);
     this.dxfGroup.clear();
     this.dxfTextItems = [];
     this.dxfSegments = [];
     this.dxfSpatialGrid.clear();
 
+    const isWhite = this.bgTheme === 'white';
     const autoCenter = options.autoCenter ?? true;
     const offsetX = autoCenter ? (options.centerX ?? 0) : 0;
     const offsetY = autoCenter ? (options.centerY ?? 0) : 0;
@@ -828,21 +873,52 @@ export class CADEngine {
       });
     }
 
+    const defaultLineR = isWhite ? 0.15 : 0.55;
+    const defaultLineG = isWhite ? 0.20 : 0.70;
+    const defaultLineB = isWhite ? 0.28 : 0.85;
+
+    const resolveEntityRgb = (layerName?: string, defR = defaultLineR, defG = defaultLineG, defB = defaultLineB) => {
+      if (layerName && layerColorMap.has(layerName)) {
+        const hex = layerColorMap.get(layerName)!;
+        const c = new THREE.Color(hex);
+        if (isWhite) {
+          const lum = 0.299 * (c.r * 255) + 0.587 * (c.g * 255) + 0.114 * (c.b * 255);
+          if (lum > 180) {
+            return { r: 0.14, g: 0.18, b: 0.24 };
+          }
+        }
+        return { r: c.r, g: c.g, b: c.b };
+      }
+      return { r: defR, g: defG, b: defB };
+    };
+
     const linePositions: number[] = [];
     const colors: number[] = [];
 
     const toSceneX = (x: number) => (x - offsetX) * scale;
     const toSceneZ = (y: number) => (y - offsetY) * scale;
 
-    const addSegment = (x1: number, y1: number, x2: number, y2: number, r = 0.55, g = 0.7, b = 0.85, isMain = true) => {
+    const addSegment = (x1: number, y1: number, x2: number, y2: number, r = defaultLineR, g = defaultLineG, b = defaultLineB, isMain = true) => {
+      let finalR = r;
+      let finalG = g;
+      let finalB = b;
+      if (isWhite) {
+        const lum = 0.299 * (r * 255) + 0.587 * (g * 255) + 0.114 * (b * 255);
+        if (lum > 180) {
+          finalR = 0.14;
+          finalG = 0.18;
+          finalB = 0.24;
+        }
+      }
+
       const sx1 = toSceneX(x1);
       const sz1 = toSceneZ(y1);
       const sx2 = toSceneX(x2);
       const sz2 = toSceneZ(y2);
       linePositions.push(sx1, 0, sz1);
       linePositions.push(sx2, 0, sz2);
-      colors.push(r, g, b);
-      colors.push(r, g, b);
+      colors.push(finalR, finalG, finalB);
+      colors.push(finalR, finalG, finalB);
 
       if (isMain) {
         const len = Math.hypot(sx2 - sx1, sz2 - sz1);
@@ -911,8 +987,8 @@ export class CADEngine {
       }
 
       const layerName = ent.layer || '0';
-      const rawColor = layerColorMap.get(layerName) || '#58a6ff';
-      const legibleColor = getLegibleColor(rawColor);
+      const rawColor = layerColorMap.get(layerName) || (isWhite ? '#1e293b' : '#58a6ff');
+      const legibleColor = getLegibleColor(rawColor, isWhite ? '#1e293b' : '#58a6ff', isWhite);
 
       this.dxfTextItems.push({
         text: cleaned,
@@ -934,12 +1010,13 @@ export class CADEngine {
       switch (entity.type) {
         case 'LINE': {
           if (entity.vertices && entity.vertices.length >= 2) {
+            const { r, g, b } = resolveEntityRgb(entity.layer);
             addSegment(
               entity.vertices[0].x,
               entity.vertices[0].y,
               entity.vertices[1].x,
               entity.vertices[1].y,
-              0.55, 0.7, 0.85
+              r, g, b
             );
           }
           break;
@@ -949,13 +1026,14 @@ export class CADEngine {
         case 'POLYLINE': {
           const vertices = entity.vertices;
           if (vertices && vertices.length > 1) {
+            const { r, g, b } = resolveEntityRgb(entity.layer, isWhite ? 0.12 : 0.6, isWhite ? 0.18 : 0.75, isWhite ? 0.25 : 0.9);
             for (let i = 0; i < vertices.length - 1; i++) {
               addSegment(
                 vertices[i].x,
                 vertices[i].y,
                 vertices[i + 1].x,
                 vertices[i + 1].y,
-                0.6, 0.75, 0.9
+                r, g, b
               );
             }
             if (entity.shape || entity.closed) {
@@ -964,7 +1042,7 @@ export class CADEngine {
                 vertices[vertices.length - 1].y,
                 vertices[0].x,
                 vertices[0].y,
-                0.6, 0.75, 0.9
+                r, g, b
               );
             }
           }
@@ -973,6 +1051,7 @@ export class CADEngine {
 
         case 'CIRCLE': {
           if (entity.center && entity.radius) {
+            const { r, g, b } = resolveEntityRgb(entity.layer, isWhite ? 0.16 : 0.4, isWhite ? 0.28 : 0.8, isWhite ? 0.22 : 0.6);
             const segments = 32;
             const cx = entity.center.x;
             const cy = entity.center.y;
@@ -985,7 +1064,7 @@ export class CADEngine {
                 cy + rad * Math.sin(theta1),
                 cx + rad * Math.cos(theta2),
                 cy + rad * Math.sin(theta2),
-                0.4, 0.8, 0.6
+                r, g, b
               );
             }
           }
@@ -994,6 +1073,7 @@ export class CADEngine {
 
         case 'ARC': {
           if (entity.center && entity.radius) {
+            const { r, g, b } = resolveEntityRgb(entity.layer, isWhite ? 0.16 : 0.4, isWhite ? 0.28 : 0.8, isWhite ? 0.22 : 0.6);
             const segments = 24;
             const cx = entity.center.x;
             const cy = entity.center.y;
@@ -1011,7 +1091,7 @@ export class CADEngine {
                 cy + rad * Math.sin(a1),
                 cx + rad * Math.cos(a2),
                 cy + rad * Math.sin(a2),
-                0.4, 0.8, 0.6
+                r, g, b
               );
             }
           }
@@ -1020,6 +1100,7 @@ export class CADEngine {
 
         case 'ELLIPSE': {
           if (entity.center && entity.majorAxisEndPoint) {
+            const { r, g, b } = resolveEntityRgb(entity.layer, isWhite ? 0.16 : 0.4, isWhite ? 0.28 : 0.8, isWhite ? 0.22 : 0.6);
             const cx = entity.center.x;
             const cy = entity.center.y;
             const mx = entity.majorAxisEndPoint.x;
@@ -1036,7 +1117,7 @@ export class CADEngine {
               const y1 = cy + (majorR * Math.cos(t1) * Math.sin(rot) + minorR * Math.sin(t1) * Math.cos(rot));
               const x2 = cx + (majorR * Math.cos(t2) * Math.cos(rot) - minorR * Math.sin(t2) * Math.sin(rot));
               const y2 = cy + (majorR * Math.cos(t2) * Math.sin(rot) + minorR * Math.sin(t2) * Math.cos(rot));
-              addSegment(x1, y1, x2, y2, 0.4, 0.8, 0.6);
+              addSegment(x1, y1, x2, y2, r, g, b);
             }
           }
           break;
@@ -1072,6 +1153,8 @@ export class CADEngine {
               };
             };
 
+            const blockColor = isWhite ? { r: 0.28, g: 0.34, b: 0.42 } : { r: 0.7, g: 0.7, b: 0.7 };
+
             block.entities.forEach((sub: any) => {
               const subLayer = sub.layer || entity.layer;
               if (subLayer && hiddenLayers.has(subLayer)) return;
@@ -1081,7 +1164,7 @@ export class CADEngine {
                   if (sub.vertices && sub.vertices.length >= 2) {
                     const p1 = transformPt(sub.vertices[0]);
                     const p2 = transformPt(sub.vertices[1]);
-                    addSegment(p1.x, p1.y, p2.x, p2.y, 0.7, 0.7, 0.7, false);
+                    addSegment(p1.x, p1.y, p2.x, p2.y, blockColor.r, blockColor.g, blockColor.b, false);
                   }
                   break;
                 }
@@ -1091,12 +1174,12 @@ export class CADEngine {
                     for (let i = 0; i < sub.vertices.length - 1; i++) {
                       const p1 = transformPt(sub.vertices[i]);
                       const p2 = transformPt(sub.vertices[i + 1]);
-                      addSegment(p1.x, p1.y, p2.x, p2.y, 0.7, 0.7, 0.7, false);
+                      addSegment(p1.x, p1.y, p2.x, p2.y, blockColor.r, blockColor.g, blockColor.b, false);
                     }
                     if (sub.shape || sub.closed) {
                       const p1 = transformPt(sub.vertices[sub.vertices.length - 1]);
                       const p2 = transformPt(sub.vertices[0]);
-                      addSegment(p1.x, p1.y, p2.x, p2.y, 0.7, 0.7, 0.7, false);
+                      addSegment(p1.x, p1.y, p2.x, p2.y, blockColor.r, blockColor.g, blockColor.b, false);
                     }
                   }
                   break;
@@ -1274,6 +1357,7 @@ export class CADEngine {
 
   // Ajustar el tamaño de la rejilla CAD para que abarque holgadamente el plano
   public updateGrid(span: number) {
+    this.currentGridSpan = span;
     if (this.gridHelper) {
       this.scene.remove(this.gridHelper);
       this.gridHelper.geometry.dispose();
@@ -1281,7 +1365,13 @@ export class CADEngine {
     }
     const gridSize = Math.max(10000, Math.ceil((span * 1.4) / 1000) * 1000);
     const divisions = Math.min(200, Math.max(20, Math.round(gridSize / 1000)));
-    this.gridHelper = new THREE.GridHelper(gridSize, divisions, 0x007acc, 0x2a323d);
+    const isWhite = this.bgTheme === 'white';
+    this.gridHelper = new THREE.GridHelper(
+      gridSize, 
+      divisions, 
+      isWhite ? 0x94a3b8 : 0x007acc, 
+      isWhite ? 0xe2e8f0 : 0x2a323d
+    );
     this.gridHelper.position.y = -0.5;
     this.scene.add(this.gridHelper);
     this.requestRender(3);
@@ -1416,11 +1506,13 @@ export class CADEngine {
       ctx.textAlign = item.textAlign;
       ctx.textBaseline = item.textBaseline;
 
-      // Halo oscuro nítido para máximo contraste sobre líneas del plano
+      // Halo nítido para máximo contraste sobre líneas del plano
       ctx.lineWidth = Math.max(2, fontSize * 0.2);
       ctx.lineJoin = 'round';
-      ctx.strokeStyle = 'rgba(12, 16, 22, 0.95)';
-      ctx.fillStyle = item.color;
+      ctx.strokeStyle = this.bgTheme === 'white' ? 'rgba(255, 255, 255, 0.95)' : 'rgba(12, 16, 22, 0.95)';
+      ctx.fillStyle = this.bgTheme === 'white'
+        ? (item.color === '#e6edf3' || item.color === '#ffffff' ? '#0f172a' : item.color)
+        : item.color;
 
       const lines = item.text.split('\n');
       const lineHeight = fontSize * 1.25;
@@ -2283,6 +2375,57 @@ export class CADEngine {
 
   public getOsnapEnabled(): boolean {
     return this.isOsnapEnabled;
+  }
+
+  public setBackgroundTheme(theme: BackgroundTheme) {
+    if (this.bgTheme === theme) return;
+    this.bgTheme = theme;
+    const isWhite = theme === 'white';
+    this.scene.background = new THREE.Color(isWhite ? 0xffffff : 0x14171c);
+
+    // Actualizar Rejilla
+    this.updateGrid(this.currentGridSpan || 10000);
+
+    // Actualizar marcadores y guías
+    if (this.snapMarker) {
+      (this.snapMarker.material as THREE.MeshBasicMaterial).color.setHex(isWhite ? 0x059669 : 0x00ff88);
+    }
+    if (this.highlightLine) {
+      (this.highlightLine.material as THREE.LineBasicMaterial).color.setHex(isWhite ? 0xd97706 : 0xffd700);
+    }
+    if (this.alignmentLine) {
+      (this.alignmentLine.material as THREE.LineDashedMaterial).color.setHex(isWhite ? 0x0284c7 : 0x00ffff);
+    }
+
+    // Actualizar aristas de tuberías y accesorios
+    const edgeColor = isWhite ? 0x081b33 : 0x0e2035;
+    this.pipesGroup.traverse((c) => {
+      if (c instanceof THREE.LineSegments && c.material instanceof THREE.LineBasicMaterial) {
+        c.material.color.setHex(edgeColor);
+      }
+    });
+    this.fittingsGroup.traverse((c) => {
+      if (c instanceof THREE.LineSegments && c.material instanceof THREE.LineBasicMaterial) {
+        c.material.color.setHex(edgeColor);
+      }
+    });
+
+    // Limpiar caché de materiales para regenerar según tema
+    this.materialCache.clear();
+    this.applyVisualModeToGroup(this.pipesGroup);
+    this.applyVisualModeToGroup(this.fittingsGroup);
+
+    // Re-renderizar plano DXF si existe
+    if (this.lastDxfEntities) {
+      this.renderDxfEntities(this.lastDxfEntities, this.lastDxfOptions);
+    }
+
+    this.markDxfTextsDirty();
+    this.requestRender(5);
+  }
+
+  public getBackgroundTheme(): BackgroundTheme {
+    return this.bgTheme;
   }
 
   public handleResize() {
