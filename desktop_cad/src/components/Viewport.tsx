@@ -721,6 +721,24 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
     };
   }, []);
 
+  // Escuchar cuando un modelo STEP real termina de cargarse desde GLB
+  useEffect(() => {
+    const unsubscribe = FittingGeometryFactory.onModelLoaded((loadedFittingId) => {
+      if (selectedFittingRef.current?.id === loadedFittingId) {
+        updateGhostPreview();
+      }
+      engineRef.current?.requestRender(3);
+    });
+    return unsubscribe;
+  }, []);
+
+  // Pre-cargar modelo STEP en segundo plano al seleccionar del catálogo
+  useEffect(() => {
+    if (selectedFitting) {
+      FittingGeometryFactory.preloadModel(selectedFitting);
+    }
+  }, [selectedFitting]);
+
   // Sincronizar tuberías existentes en la escena
   useEffect(() => {
     if (!engineRef.current) return;

@@ -1492,7 +1492,7 @@ export class CADEngine {
       return;
     }
 
-    if (!this.previewFittingMesh || this.currentPreviewFittingId !== fittingId) {
+    if (!this.previewFittingMesh || this.currentPreviewFittingId !== fittingId || this.previewFittingMesh.geometry !== geometry) {
       if (this.previewFittingMesh) {
         this.scene.remove(this.previewFittingMesh);
       }

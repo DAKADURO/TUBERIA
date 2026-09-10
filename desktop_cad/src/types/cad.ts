@@ -78,10 +78,13 @@ export interface FittingDefinition {
     | 'valve' 
     | 'quick_drop' 
     | 'flange' 
-    | 'cap';
+    | 'cap'
+    | 'clamp'
+    | 'adapter';
   nominalDiameter: number; // mm
   ports: ConnectionPort[];
   stepFileName?: string;
+  modelUrl?: string;
   dimensions: {
     length: number;
     width: number;

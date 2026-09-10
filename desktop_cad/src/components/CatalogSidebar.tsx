@@ -18,23 +18,32 @@ export const CatalogSidebar: React.FC<CatalogSidebarProps> = ({
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [diameterFilter, setDiameterFilter] = useState<number | 'all'>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const categories = [
-    { id: 'all', name: 'Todo el Catálogo' },
+    { id: 'all', name: 'Todo' },
     { id: 'elbow_90', name: 'Codos 90°' },
     { id: 'elbow_45', name: 'Codos 45°' },
-    { id: 'tee', name: 'Tees Iguales' },
-    { id: 'coupling', name: 'Coples Unión' },
-    { id: 'valve', name: 'Válvulas de Esfera' },
-    { id: 'quick_drop', name: 'Quick Drops (Bajadas)' },
+    { id: 'tee', name: 'Tees' },
+    { id: 'coupling', name: 'Coples' },
+    { id: 'reducer', name: 'Reducciones' },
+    { id: 'quick_drop', name: 'Quick Drops' },
     { id: 'flange', name: 'Bridas ANSI' },
-    { id: 'cap', name: 'Tapones Finales' },
+    { id: 'cap', name: 'Tapones' },
+    { id: 'adapter', name: 'Adaptadores' },
+    { id: 'clamp', name: 'Abrazaderas' },
+    { id: 'valve', name: 'Válvulas' },
   ];
 
   const filteredFittings = AIRPIPE_CATALOG.filter((item) => {
     const matchCategory = selectedCategory === 'all' || item.category === selectedCategory;
     const matchDiameter = diameterFilter === 'all' || item.nominalDiameter === diameterFilter;
-    return matchCategory && matchDiameter;
+    const matchSearch =
+      searchQuery.trim() === '' ||
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.category.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchCategory && matchDiameter && matchSearch;
   });
 
   return (
@@ -45,12 +54,12 @@ export const CatalogSidebar: React.FC<CatalogSidebarProps> = ({
           <Box className="w-3.5 h-3.5 mr-1.5" />
           Diámetro de Tubería Activo
         </h2>
-        <div className="grid grid-cols-4 gap-1.5 font-mono text-xs">
-          {[20, 25, 40, 50, 63, 80].map((d) => (
+        <div className="grid grid-cols-5 gap-1 font-mono text-xs">
+          {[20, 25, 40, 50, 63, 80, 100, 125, 160].map((d) => (
             <button
               key={d}
               onClick={() => onSelectDiameter(d)}
-              className={`py-1.5 rounded text-center transition border ${
+              className={`py-1 rounded text-center transition border text-[11px] ${
                 selectedDiameter === d
                   ? 'bg-blue-600 border-blue-400 text-white font-bold shadow-sm'
                   : 'bg-[#1b2028] border-[#2a323d] text-[#8b949e] hover:border-[#3b4756]'
@@ -67,10 +76,21 @@ export const CatalogSidebar: React.FC<CatalogSidebarProps> = ({
 
       {/* 2. FILTROS DEL CATÁLOGO */}
       <div className="p-3 border-b border-[#2a323d] space-y-2">
+        {/* Campo de búsqueda */}
+        <div>
+          <input
+            type="text"
+            placeholder="Buscar por código (1003) o nombre..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-[#14171c] border border-[#2a323d] rounded px-2.5 py-1 text-xs text-white placeholder-[#8b949e] focus:border-blue-500 outline-none"
+          />
+        </div>
+
         <div className="flex items-center justify-between text-[11px] text-[#8b949e]">
           <span className="flex items-center">
             <Filter className="w-3 h-3 mr-1" />
-            Filtrar Accesorios:
+            Filtrar por Ø:
           </span>
           <select
             value={diameterFilter}
@@ -78,22 +98,27 @@ export const CatalogSidebar: React.FC<CatalogSidebarProps> = ({
             className="bg-[#14171c] border border-[#2a323d] rounded px-1.5 py-0.5 text-white text-xs outline-none"
           >
             <option value="all">Todos los Ø</option>
-            <option value="25">25 mm</option>
-            <option value="40">40 mm</option>
-            <option value="50">50 mm</option>
-            <option value="63">63 mm</option>
+            <option value="20">DN20 (3/4")</option>
+            <option value="25">DN25 (1")</option>
+            <option value="40">DN40 (1-1/2")</option>
+            <option value="50">DN50 (2")</option>
+            <option value="63">DN63 (2-1/2")</option>
+            <option value="80">DN80 (3")</option>
+            <option value="100">DN100 (4")</option>
+            <option value="125">DN125 (5")</option>
+            <option value="160">DN160 (6")</option>
           </select>
         </div>
 
         {/* Categorías en chips */}
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto scrollbar-thin">
           {categories.map((cat) => (
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
               className={`text-[10px] px-2 py-0.5 rounded-full transition ${
                 selectedCategory === cat.id
-                  ? 'bg-blue-600/30 border border-blue-500 text-blue-300'
+                  ? 'bg-blue-600/40 border border-blue-400 text-blue-200 font-medium'
                   : 'bg-[#14171c] border border-[#2a323d] text-[#8b949e] hover:text-white'
               }`}
             >

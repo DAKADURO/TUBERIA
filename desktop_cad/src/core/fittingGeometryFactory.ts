@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { FittingDefinition } from '../types/cad';
 
 /**
@@ -81,6 +82,60 @@ export class FittingGeometryFactory {
     string,
     { geometry: THREE.BufferGeometry; edgesGeometry: THREE.BufferGeometry; color: number }
   >();
+  private static gltfLoader = new GLTFLoader();
+  private static loadingPromises = new Map<string, Promise<THREE.BufferGeometry | null>>();
+  private static listeners = new Set<(fittingId: string) => void>();
+
+  public static onModelLoaded(listener: (fittingId: string) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  public static preloadModel(fitting: FittingDefinition): void {
+    if (!fitting.modelUrl || this.cache.has(fitting.id) || this.loadingPromises.has(fitting.id)) {
+      return;
+    }
+    this.loadGlbGeometry(fitting);
+  }
+
+  private static async loadGlbGeometry(fitting: FittingDefinition): Promise<THREE.BufferGeometry | null> {
+    if (!fitting.modelUrl) return null;
+    const promise = (async () => {
+      try {
+        const gltf = await this.gltfLoader.loadAsync(fitting.modelUrl!);
+        const geoms: THREE.BufferGeometry[] = [];
+        
+        gltf.scene.updateMatrixWorld(true);
+        gltf.scene.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            const m = child as THREE.Mesh;
+            const geom = m.geometry.clone();
+            geom.applyMatrix4(m.matrixWorld);
+            geoms.push(geom);
+          }
+        });
+
+        if (geoms.length > 0) {
+          const merged = geoms.length === 1 ? geoms[0] : (mergeGeometries(geoms, false) || geoms[0]);
+          const edgesGeometry = new THREE.EdgesGeometry(merged, 25);
+          const result = {
+            geometry: merged,
+            edgesGeometry,
+            color: 0x2b3847, // Acabado industrial metálico Airpipe
+          };
+          this.cache.set(fitting.id, result);
+          this.listeners.forEach((cb) => cb(fitting.id));
+          return merged;
+        }
+      } catch (err) {
+        console.warn(`[FittingGeometryFactory] Could not load GLB for ${fitting.id} (${fitting.modelUrl}):`, err);
+      }
+      return null;
+    })();
+
+    this.loadingPromises.set(fitting.id, promise);
+    return promise;
+  }
 
   public static createGeometry(fitting: FittingDefinition): {
     geometry: THREE.BufferGeometry;
@@ -90,6 +145,11 @@ export class FittingGeometryFactory {
     const cached = this.cache.get(fitting.id);
     if (cached) {
       return cached;
+    }
+
+    // Disparar carga asíncrona del modelo STEP real
+    if (fitting.modelUrl && !this.loadingPromises.has(fitting.id)) {
+      this.loadGlbGeometry(fitting);
     }
 
     const generated = this.generateGeometry(fitting);
