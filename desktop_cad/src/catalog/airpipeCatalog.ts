@@ -1753,7 +1753,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": 20,
+          "x": 79.5,
           "y": 0,
           "z": 0
         },
@@ -1769,21 +1769,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 20
+          "z": 79.5
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 20
       }
     ],
     "modelUrl": "/models/ultra/1003.glb",
     "stepFileName": "codo 90/1003.STEP",
     "dimensions": {
-      "length": 50,
-      "width": 50,
+      "length": 79.5,
+      "width": 79.5,
       "height": 30
     }
   },
@@ -1797,7 +1797,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": 25,
+          "x": 83,
           "y": 0,
           "z": 0
         },
@@ -1813,21 +1813,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 25
+          "z": 83
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 25
       }
     ],
     "modelUrl": "/models/ultra/2003.glb",
     "stepFileName": "codo 90/2003.STEP",
     "dimensions": {
-      "length": 62.5,
-      "width": 62.5,
+      "length": 83,
+      "width": 83,
       "height": 37.5
     }
   },
@@ -1841,7 +1841,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": 40,
+          "x": 109.1,
           "y": 0,
           "z": 0
         },
@@ -1857,21 +1857,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 40
+          "z": 109.1
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 40
       }
     ],
     "modelUrl": "/models/ultra/4003.glb",
     "stepFileName": "codo 90/4003.STEP",
     "dimensions": {
-      "length": 100,
-      "width": 100,
+      "length": 109.1,
+      "width": 109.1,
       "height": 60
     }
   },
@@ -1885,7 +1885,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": 50,
+          "x": 115.4,
           "y": 0,
           "z": 0
         },
@@ -1901,21 +1901,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 50
+          "z": 115.4
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 50
       }
     ],
     "modelUrl": "/models/ultra/5003.glb",
     "stepFileName": "codo 90/5003.STEP",
     "dimensions": {
-      "length": 125,
-      "width": 125,
+      "length": 115.4,
+      "width": 115.4,
       "height": 75
     }
   },
@@ -1929,7 +1929,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": 63,
+          "x": 105,
           "y": 0,
           "z": 0
         },
@@ -1945,21 +1945,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 63
+          "z": 105
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 63
       }
     ],
     "modelUrl": "/models/ultra/6003.glb",
     "stepFileName": "codo 90/6003.STEP",
     "dimensions": {
-      "length": 157.5,
-      "width": 157.5,
+      "length": 105,
+      "width": 105,
       "height": 94.5
     }
   },
@@ -1973,7 +1973,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": 80,
+          "x": 110,
           "y": 0,
           "z": 0
         },
@@ -1989,21 +1989,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 80
+          "z": 110
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 80
       }
     ],
     "modelUrl": "/models/ultra/7003.glb",
     "stepFileName": "codo 90/7003.STEP",
     "dimensions": {
-      "length": 200,
-      "width": 200,
+      "length": 110,
+      "width": 110,
       "height": 120
     }
   },
@@ -2017,7 +2017,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": 100,
+          "x": 140,
           "y": 0,
           "z": 0
         },
@@ -2033,21 +2033,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 100
+          "z": 140
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 100
       }
     ],
     "modelUrl": "/models/ultra/8003.glb",
     "stepFileName": "codo 90/8003.STEP",
     "dimensions": {
-      "length": 250,
-      "width": 250,
+      "length": 140,
+      "width": 140,
       "height": 150
     }
   },
@@ -2061,7 +2061,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": 125,
+          "x": 185,
           "y": 0,
           "z": 0
         },
@@ -2077,21 +2077,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 125
+          "z": 185
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 125
       }
     ],
     "modelUrl": "/models/ultra/9003.glb",
     "stepFileName": "codo 90/9003.STEP",
     "dimensions": {
-      "length": 312.5,
-      "width": 312.5,
+      "length": 185,
+      "width": 185,
       "height": 187.5
     }
   },
@@ -2105,7 +2105,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": 160,
+          "x": 207.5,
           "y": 0,
           "z": 0
         },
@@ -2121,21 +2121,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 160
+          "z": 207.5
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 160
       }
     ],
     "modelUrl": "/models/ultra/A003.glb",
     "stepFileName": "codo 90/A003.STEP",
     "dimensions": {
-      "length": 400,
-      "width": 400,
+      "length": 207.5,
+      "width": 207.5,
       "height": 240
     }
   },
@@ -6847,7 +6847,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": -20,
+          "x": -79.5,
           "y": 0,
           "z": 0
         },
@@ -6861,7 +6861,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p2",
         "position": {
-          "x": 20,
+          "x": 79.5,
           "y": 0,
           "z": 0
         },
@@ -6877,21 +6877,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 20
+          "z": 79.5
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 20
       }
     ],
     "modelUrl": "/models/ultra/1005.glb",
     "stepFileName": "tee/1005.STEP",
     "dimensions": {
-      "length": 50,
-      "width": 50,
+      "length": 159,
+      "width": 79.5,
       "height": 30
     }
   },
@@ -6905,7 +6905,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": -25,
+          "x": -83,
           "y": 0,
           "z": 0
         },
@@ -6919,7 +6919,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p2",
         "position": {
-          "x": 25,
+          "x": 83,
           "y": 0,
           "z": 0
         },
@@ -6935,21 +6935,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 25
+          "z": 83
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 25
       }
     ],
     "modelUrl": "/models/ultra/2005.glb",
     "stepFileName": "tee/2005.STEP",
     "dimensions": {
-      "length": 62.5,
-      "width": 62.5,
+      "length": 166,
+      "width": 83,
       "height": 37.5
     }
   },
@@ -6963,7 +6963,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": -40,
+          "x": -109,
           "y": 0,
           "z": 0
         },
@@ -6977,7 +6977,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p2",
         "position": {
-          "x": 40,
+          "x": 109,
           "y": 0,
           "z": 0
         },
@@ -6993,21 +6993,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 40
+          "z": 109
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 40
       }
     ],
     "modelUrl": "/models/ultra/4005.glb",
     "stepFileName": "tee/4005.STEP",
     "dimensions": {
-      "length": 100,
-      "width": 100,
+      "length": 218,
+      "width": 109,
       "height": 60
     }
   },
@@ -7021,7 +7021,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": -50,
+          "x": -115.5,
           "y": 0,
           "z": 0
         },
@@ -7035,7 +7035,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p2",
         "position": {
-          "x": 50,
+          "x": 115.5,
           "y": 0,
           "z": 0
         },
@@ -7051,21 +7051,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 50
+          "z": 115.5
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 50
       }
     ],
     "modelUrl": "/models/ultra/5005.glb",
     "stepFileName": "tee/5005.STEP",
     "dimensions": {
-      "length": 125,
-      "width": 125,
+      "length": 231,
+      "width": 115.5,
       "height": 75
     }
   },
@@ -7079,122 +7079,6 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": -63,
-          "y": 0,
-          "z": 0
-        },
-        "direction": {
-          "x": -1,
-          "y": 0,
-          "z": 0
-        },
-        "diameter": 63
-      },
-      {
-        "id": "p2",
-        "position": {
-          "x": 63,
-          "y": 0,
-          "z": 0
-        },
-        "direction": {
-          "x": 1,
-          "y": 0,
-          "z": 0
-        },
-        "diameter": 63
-      },
-      {
-        "id": "p3",
-        "position": {
-          "x": 0,
-          "y": 0,
-          "z": 63
-        },
-        "direction": {
-          "x": 0,
-          "y": 0,
-          "z": 1
-        },
-        "diameter": 15
-      }
-    ],
-    "modelUrl": "/models/ultra/6005.glb",
-    "stepFileName": "tee/6005.STEP",
-    "dimensions": {
-      "length": 157.5,
-      "width": 157.5,
-      "height": 94.5
-    }
-  },
-  {
-    "id": "ultra_7005",
-    "code": "AP-7005",
-    "name": "Tee Igual Aluminio DN80 (3\") - Cod. 7005",
-    "category": "tee",
-    "nominalDiameter": 80,
-    "ports": [
-      {
-        "id": "p1",
-        "position": {
-          "x": -80,
-          "y": 0,
-          "z": 0
-        },
-        "direction": {
-          "x": -1,
-          "y": 0,
-          "z": 0
-        },
-        "diameter": 80
-      },
-      {
-        "id": "p2",
-        "position": {
-          "x": 80,
-          "y": 0,
-          "z": 0
-        },
-        "direction": {
-          "x": 1,
-          "y": 0,
-          "z": 0
-        },
-        "diameter": 80
-      },
-      {
-        "id": "p3",
-        "position": {
-          "x": 0,
-          "y": 0,
-          "z": 80
-        },
-        "direction": {
-          "x": 0,
-          "y": 0,
-          "z": 1
-        },
-        "diameter": 15
-      }
-    ],
-    "modelUrl": "/models/ultra/7005.glb",
-    "stepFileName": "tee/7005.STEP",
-    "dimensions": {
-      "length": 200,
-      "width": 200,
-      "height": 120
-    }
-  },
-  {
-    "id": "ultra_8005",
-    "code": "AP-8005",
-    "name": "Tee Igual Aluminio DN100 (4\") - Cod. 8005",
-    "category": "tee",
-    "nominalDiameter": 100,
-    "ports": [
-      {
-        "id": "p1",
-        "position": {
           "x": -100,
           "y": 0,
           "z": 0
@@ -7204,7 +7088,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
           "y": 0,
           "z": 0
         },
-        "diameter": 100
+        "diameter": 63
       },
       {
         "id": "p2",
@@ -7218,7 +7102,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
           "y": 0,
           "z": 0
         },
-        "diameter": 100
+        "diameter": 63
       },
       {
         "id": "p3",
@@ -7232,14 +7116,130 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 63
+      }
+    ],
+    "modelUrl": "/models/ultra/6005.glb",
+    "stepFileName": "tee/6005.STEP",
+    "dimensions": {
+      "length": 200,
+      "width": 100,
+      "height": 94.5
+    }
+  },
+  {
+    "id": "ultra_7005",
+    "code": "AP-7005",
+    "name": "Tee Igual Aluminio DN80 (3\") - Cod. 7005",
+    "category": "tee",
+    "nominalDiameter": 80,
+    "ports": [
+      {
+        "id": "p1",
+        "position": {
+          "x": -110,
+          "y": 0,
+          "z": 0
+        },
+        "direction": {
+          "x": -1,
+          "y": 0,
+          "z": 0
+        },
+        "diameter": 80
+      },
+      {
+        "id": "p2",
+        "position": {
+          "x": 110,
+          "y": 0,
+          "z": 0
+        },
+        "direction": {
+          "x": 1,
+          "y": 0,
+          "z": 0
+        },
+        "diameter": 80
+      },
+      {
+        "id": "p3",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 110
+        },
+        "direction": {
+          "x": 0,
+          "y": 0,
+          "z": 1
+        },
+        "diameter": 80
+      }
+    ],
+    "modelUrl": "/models/ultra/7005.glb",
+    "stepFileName": "tee/7005.STEP",
+    "dimensions": {
+      "length": 220,
+      "width": 110,
+      "height": 120
+    }
+  },
+  {
+    "id": "ultra_8005",
+    "code": "AP-8005",
+    "name": "Tee Igual Aluminio DN100 (4\") - Cod. 8005",
+    "category": "tee",
+    "nominalDiameter": 100,
+    "ports": [
+      {
+        "id": "p1",
+        "position": {
+          "x": -131,
+          "y": 0,
+          "z": 0
+        },
+        "direction": {
+          "x": -1,
+          "y": 0,
+          "z": 0
+        },
+        "diameter": 100
+      },
+      {
+        "id": "p2",
+        "position": {
+          "x": 131,
+          "y": 0,
+          "z": 0
+        },
+        "direction": {
+          "x": 1,
+          "y": 0,
+          "z": 0
+        },
+        "diameter": 100
+      },
+      {
+        "id": "p3",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 131
+        },
+        "direction": {
+          "x": 0,
+          "y": 0,
+          "z": 1
+        },
+        "diameter": 100
       }
     ],
     "modelUrl": "/models/ultra/8005.glb",
     "stepFileName": "tee/8005.STEP",
     "dimensions": {
-      "length": 250,
-      "width": 250,
+      "length": 262,
+      "width": 131,
       "height": 150
     }
   },
@@ -7253,7 +7253,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": -125,
+          "x": -165,
           "y": 0,
           "z": 0
         },
@@ -7267,7 +7267,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p2",
         "position": {
-          "x": 125,
+          "x": 165,
           "y": 0,
           "z": 0
         },
@@ -7283,21 +7283,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 125
+          "z": 170
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 125
       }
     ],
     "modelUrl": "/models/ultra/9005.glb",
     "stepFileName": "tee/9005.STEP",
     "dimensions": {
-      "length": 312.5,
-      "width": 312.5,
+      "length": 330,
+      "width": 170,
       "height": 187.5
     }
   },
@@ -7311,7 +7311,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": -160,
+          "x": -187.5,
           "y": 0,
           "z": 0
         },
@@ -7325,7 +7325,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p2",
         "position": {
-          "x": 160,
+          "x": 187.5,
           "y": 0,
           "z": 0
         },
@@ -7341,21 +7341,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 160
+          "z": 190
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 160
       }
     ],
     "modelUrl": "/models/ultra/A005.glb",
     "stepFileName": "tee/A005.STEP",
     "dimensions": {
-      "length": 400,
-      "width": 400,
+      "length": 375,
+      "width": 190,
       "height": 240
     }
   },
@@ -7369,7 +7369,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": 25,
+          "x": 83,
           "y": 0,
           "z": 0
         },
@@ -7385,21 +7385,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 25
+          "z": 83
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 25
       }
     ],
     "modelUrl": "/models/ultra/2003.glb",
     "stepFileName": "codo 90/2003.STEP",
     "dimensions": {
-      "length": 62.5,
-      "width": 62.5,
+      "length": 83,
+      "width": 83,
       "height": 37.5
     }
   },
@@ -7413,7 +7413,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": 40,
+          "x": 109.1,
           "y": 0,
           "z": 0
         },
@@ -7429,21 +7429,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 40
+          "z": 109.1
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 40
       }
     ],
     "modelUrl": "/models/ultra/4003.glb",
     "stepFileName": "codo 90/4003.STEP",
     "dimensions": {
-      "length": 100,
-      "width": 100,
+      "length": 109.1,
+      "width": 109.1,
       "height": 60
     }
   },
@@ -7457,7 +7457,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": 50,
+          "x": 115.4,
           "y": 0,
           "z": 0
         },
@@ -7473,21 +7473,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 50
+          "z": 115.4
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 50
       }
     ],
     "modelUrl": "/models/ultra/5003.glb",
     "stepFileName": "codo 90/5003.STEP",
     "dimensions": {
-      "length": 125,
-      "width": 125,
+      "length": 115.4,
+      "width": 115.4,
       "height": 75
     }
   },
@@ -7501,7 +7501,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": 63,
+          "x": 105,
           "y": 0,
           "z": 0
         },
@@ -7517,21 +7517,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 63
+          "z": 105
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 63
       }
     ],
     "modelUrl": "/models/ultra/6003.glb",
     "stepFileName": "codo 90/6003.STEP",
     "dimensions": {
-      "length": 157.5,
-      "width": 157.5,
+      "length": 105,
+      "width": 105,
       "height": 94.5
     }
   },
@@ -7633,7 +7633,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": -25,
+          "x": -83,
           "y": 0,
           "z": 0
         },
@@ -7647,7 +7647,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p2",
         "position": {
-          "x": 25,
+          "x": 83,
           "y": 0,
           "z": 0
         },
@@ -7663,21 +7663,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 25
+          "z": 83
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 25
       }
     ],
     "modelUrl": "/models/ultra/2005.glb",
     "stepFileName": "tee/2005.STEP",
     "dimensions": {
-      "length": 62.5,
-      "width": 62.5,
+      "length": 166,
+      "width": 83,
       "height": 37.5
     }
   },
@@ -7691,7 +7691,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p1",
         "position": {
-          "x": -50,
+          "x": -115.5,
           "y": 0,
           "z": 0
         },
@@ -7705,7 +7705,7 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
       {
         "id": "p2",
         "position": {
-          "x": 50,
+          "x": 115.5,
           "y": 0,
           "z": 0
         },
@@ -7721,21 +7721,21 @@ export const AIRPIPE_CATALOG: FittingDefinition[] = [
         "position": {
           "x": 0,
           "y": 0,
-          "z": 50
+          "z": 115.5
         },
         "direction": {
           "x": 0,
           "y": 0,
           "z": 1
         },
-        "diameter": 15
+        "diameter": 50
       }
     ],
     "modelUrl": "/models/ultra/5005.glb",
     "stepFileName": "tee/5005.STEP",
     "dimensions": {
-      "length": 125,
-      "width": 125,
+      "length": 231,
+      "width": 115.5,
       "height": 75
     }
   },

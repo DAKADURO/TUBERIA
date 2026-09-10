@@ -8,31 +8,31 @@ import { FittingDefinition } from '../types/cad';
  * Inicia en (0, 0, 0) con dirección +Z y termina en (R+S, 0, R+S) con dirección +X.
  */
 class Elbow90Curve extends THREE.Curve<THREE.Vector3> {
-  constructor(public R: number, public S: number) {
+  constructor(public Larm: number, public S: number) {
     super();
   }
 
   getPoint(t: number, target = new THREE.Vector3()) {
-    const arcAngle = Math.PI / 2;
-    const arcLen = arcAngle * this.R;
+    const R = this.Larm - this.S;
+    const arcLen = (Math.PI / 2) * R;
     const totalLen = this.S + arcLen + this.S;
     const s = t * totalLen;
 
     if (s <= this.S) {
-      // Manga recta inicial (orientada en +Z)
-      return target.set(0, 0, s);
+      // Manga recta 1: desde (Larm, 0, 0) hacia (R, 0, 0)
+      return target.set(this.Larm - s, 0, 0);
     } else if (s <= this.S + arcLen) {
-      // Arco de 90° en plano horizontal XZ
-      const theta = ((s - this.S) / arcLen) * arcAngle;
+      // Arco circular de 90° centrado en (R, 0, R)
+      const theta = ((s - this.S) / arcLen) * (Math.PI / 2);
       return target.set(
-        this.R * (1 - Math.cos(theta)),
+        R - R * Math.sin(theta),
         0,
-        this.S + this.R * Math.sin(theta)
+        R - R * Math.cos(theta)
       );
     } else {
-      // Manga recta final (orientada en +X)
+      // Manga recta 2: desde (0, 0, R) hacia (0, 0, Larm)
       const rem = s - (this.S + arcLen);
-      return target.set(this.R + rem, 0, this.S + this.R);
+      return target.set(0, 0, R + rem);
     }
   }
 }
@@ -77,11 +77,15 @@ class Elbow45Curve extends THREE.Curve<THREE.Vector3> {
  * Codos de 90° y 45°, Tees, Coples, Válvulas con maneta, Quick Drops y Bridas.
  * Todas las geometrías yacen coherentemente en el plano horizontal XZ (Y = 0).
  */
+export interface CachedFittingGeometry {
+  geometry: THREE.BufferGeometry;
+  edgesGeometry: THREE.BufferGeometry;
+  color: number;
+}
+
 export class FittingGeometryFactory {
-  private static cache = new Map<
-    string,
-    { geometry: THREE.BufferGeometry; edgesGeometry: THREE.BufferGeometry; color: number }
-  >();
+  private static realModelCache = new Map<string, CachedFittingGeometry>();
+  private static proceduralCache = new Map<string, CachedFittingGeometry>();
   private static gltfLoader = new GLTFLoader();
   private static loadingPromises = new Map<string, Promise<THREE.BufferGeometry | null>>();
   private static listeners = new Set<(fittingId: string) => void>();
@@ -91,8 +95,16 @@ export class FittingGeometryFactory {
     return () => this.listeners.delete(listener);
   }
 
+  public static hasRealModel(fittingId: string): boolean {
+    return this.realModelCache.has(fittingId);
+  }
+
+  public static getCachedGeometry(fittingId: string): CachedFittingGeometry | undefined {
+    return this.realModelCache.get(fittingId) || this.proceduralCache.get(fittingId);
+  }
+
   public static preloadModel(fitting: FittingDefinition): void {
-    if (!fitting.modelUrl || this.cache.has(fitting.id) || this.loadingPromises.has(fitting.id)) {
+    if (!fitting.modelUrl || this.realModelCache.has(fitting.id) || this.loadingPromises.has(fitting.id)) {
       return;
     }
     this.loadGlbGeometry(fitting);
@@ -118,12 +130,12 @@ export class FittingGeometryFactory {
         if (geoms.length > 0) {
           const merged = geoms.length === 1 ? geoms[0] : (mergeGeometries(geoms, false) || geoms[0]);
           const edgesGeometry = new THREE.EdgesGeometry(merged, 25);
-          const result = {
+          const result: CachedFittingGeometry = {
             geometry: merged,
             edgesGeometry,
             color: 0x2b3847, // Acabado industrial metálico Airpipe
           };
-          this.cache.set(fitting.id, result);
+          this.realModelCache.set(fitting.id, result);
           this.listeners.forEach((cb) => cb(fitting.id));
           return merged;
         }
@@ -137,29 +149,30 @@ export class FittingGeometryFactory {
     return promise;
   }
 
-  public static createGeometry(fitting: FittingDefinition): {
-    geometry: THREE.BufferGeometry;
-    edgesGeometry: THREE.BufferGeometry;
-    color: number;
-  } {
-    const cached = this.cache.get(fitting.id);
-    if (cached) {
-      return cached;
+  public static createGeometry(fitting: FittingDefinition): CachedFittingGeometry {
+    const realCached = this.realModelCache.get(fitting.id);
+    if (realCached) {
+      return realCached;
     }
 
-    // Disparar carga asíncrona del modelo STEP real
+    // Disparar carga asíncrona del modelo STEP real si aún no se ha iniciado
     if (fitting.modelUrl && !this.loadingPromises.has(fitting.id)) {
       this.loadGlbGeometry(fitting);
     }
 
+    const procCached = this.proceduralCache.get(fitting.id);
+    if (procCached) {
+      return procCached;
+    }
+
     const generated = this.generateGeometry(fitting);
     const edgesGeometry = new THREE.EdgesGeometry(generated.geometry, 25);
-    const result = {
+    const result: CachedFittingGeometry = {
       geometry: generated.geometry,
       edgesGeometry,
       color: generated.color,
     };
-    this.cache.set(fitting.id, result);
+    this.proceduralCache.set(fitting.id, result);
     return result;
   }
 
@@ -172,13 +185,9 @@ export class FittingGeometryFactory {
 
     switch (fitting.category) {
       case 'elbow_90': {
-        // Codo de 90° con arco toroidal en plano horizontal XZ y mangas de unión
-        const p2 = fitting.ports[1]?.position || { x: 50, y: 0, z: 50 };
-        const legLen = Math.max(35, p2.x);
-        const S = Math.round(legLen * 0.3);
-        const R = legLen - S;
-
-        const curve = new Elbow90Curve(R, S);
+        const Larm = Math.max(fitting.ports[0]?.position.x || 0, fitting.ports[1]?.position.z || 0) || 50;
+        const S = Math.round(Larm * 0.28);
+        const curve = new Elbow90Curve(Larm, S);
         const geometry = new THREE.TubeGeometry(curve, 24, r * 1.08, 16, false);
         return { geometry, color: 0x2b3847 }; // Aluminio oscuro anodizado Airpipe
       }

@@ -162,38 +162,30 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
   ): { rotation: Vector3D; quaternion: THREE.Quaternion; cornerPlacePos?: Vector3D } => {
     // Si se hace snap a una esquina de tuberías o del plano DXF:
     if ((snap?.type === 'pipe_corner' || snap?.type === 'dxf_corner') && snap.cornerInfo) {
-      const { V, u1, u2, s } = snap.cornerInfo;
+      const { V, u1, u2 } = snap.cornerInfo;
       const fitting = selectedFittingRef.current;
-      const Larm = fitting?.ports[1]?.position.x || 50;
+      const Larm = Math.max(
+        fitting?.ports[0]?.position?.x || 0,
+        fitting?.ports[0]?.position?.z || 0,
+        fitting?.ports[1]?.position?.x || 0,
+        fitting?.ports[1]?.position?.z || 0
+      ) || 50;
 
       const vU1 = new THREE.Vector3(u1.x, 0, u1.z).normalize();
       const vU2 = new THREE.Vector3(u2.x, 0, u2.z).normalize();
 
-      let basisX: THREE.Vector3;
-      let basisZ: THREE.Vector3;
-      let cornerPlacePos: Vector3D;
-
-      if (s > 0) {
-        // Giro hacia la derecha
-        cornerPlacePos = {
-          x: V.x - Larm * vU1.x,
-          y: V.y,
-          z: V.z - Larm * vU1.z,
-        };
-        basisX = vU2.clone();
-        basisZ = vU1.clone();
-      } else {
-        // Giro hacia la izquierda
-        cornerPlacePos = {
-          x: V.x + Larm * vU2.x,
-          y: V.y,
-          z: V.z + Larm * vU2.z,
-        };
-        basisX = vU1.clone().negate();
-        basisZ = vU2.clone().negate();
-      }
-
+      // En el modelo 3D del codo normalizado (tanto GLB como procedural):
+      // - El vértice/ápice de la esquina está en el origen (0, 0, 0).
+      // - El puerto 1 está sobre +X a distancia Larm.
+      // - El puerto 2 está sobre +Z a distancia Larm.
+      // - El vector normal del codo es +Y (hacia arriba).
+      // vU1 y vU2 son vectores unitarios que apuntan alejándose del vértice V a lo largo de cada tubería.
+      // crossY determina qué vector alinea con X y cuál con Z para que basisY = (0, 1, 0) apunte hacia arriba:
+      const crossY = vU2.z * vU1.x - vU2.x * vU1.z;
+      const basisX = crossY > 0 ? vU1.clone() : vU2.clone();
       const basisY = new THREE.Vector3(0, 1, 0);
+      const basisZ = new THREE.Vector3().crossVectors(basisX, basisY).normalize();
+
       const matrix = new THREE.Matrix4().makeBasis(basisX, basisY, basisZ);
       const q = new THREE.Quaternion().setFromRotationMatrix(matrix);
 
@@ -202,11 +194,11 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
         q.premultiply(qRoll);
       }
 
-      const euler = new THREE.Euler().setFromQuaternion(q, 'YXZ');
+      const euler = new THREE.Euler().setFromQuaternion(q, 'XYZ');
       return {
         rotation: { x: euler.x, y: euler.y, z: euler.z },
         quaternion: q,
-        cornerPlacePos,
+        cornerPlacePos: { x: V.x, y: V.y, z: V.z },
       };
     }
 
@@ -246,21 +238,26 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
     let cornerPlacePos: Vector3D | undefined;
     const isElbow = selectedFittingRef.current?.category === 'elbow_90' || selectedFittingRef.current?.category === 'elbow_45';
     if ((snap?.type === 'pipe_end' || snap?.type === 'dxf_endpoint') && isElbow && snap.pipeDirection) {
-      const Larm = selectedFittingRef.current?.ports[1]?.position.x || 50;
+      const fitting = selectedFittingRef.current;
+      const Larm = Math.max(
+        fitting?.ports[0]?.position?.x || 0,
+        fitting?.ports[0]?.position?.z || 0,
+        fitting?.ports[1]?.position?.x || 0,
+        fitting?.ports[1]?.position?.z || 0
+      ) || 50;
       const isPipeStart = snap.pipeInfo?.projectionT === 0;
       const u = snap.pipeDirection;
       if (isPipeStart) {
         cornerPlacePos = {
-          x: snap.point.x + Larm * u.x,
-          y: snap.point.y,
-          z: snap.point.z + Larm * u.z,
-        };
-        baseAngle += Math.PI;
-      } else {
-        cornerPlacePos = {
           x: snap.point.x - Larm * u.x,
           y: snap.point.y,
           z: snap.point.z - Larm * u.z,
+        };
+      } else {
+        cornerPlacePos = {
+          x: snap.point.x + Larm * u.x,
+          y: snap.point.y,
+          z: snap.point.z + Larm * u.z,
         };
       }
     }
@@ -268,7 +265,7 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
     const qBase = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), baseAngle);
     const qRoll = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), roll);
     const q = qBase.clone().multiply(qRoll);
-    const euler = new THREE.Euler().setFromQuaternion(q, 'YXZ');
+    const euler = new THREE.Euler().setFromQuaternion(q, 'XYZ');
     return {
       rotation: { x: euler.x, y: euler.y, z: euler.z },
       quaternion: q,
@@ -280,16 +277,17 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
     if (toolRef.current === 'place_fitting' && selectedFittingRef.current && engineRef.current) {
       const snap = currentSnapRef.current;
       const { rotation, cornerPlacePos } = computeFittingPlacementRotation(snap, worldCoordRef.current);
-      const placePos = ((snap?.type === 'pipe_corner' || snap?.type === 'dxf_corner') && cornerPlacePos)
+      const placePos = cornerPlacePos
         ? cornerPlacePos
         : (snap ? snap.point : worldCoordRef.current);
-      const { geometry } = FittingGeometryFactory.createGeometry(selectedFittingRef.current);
+      const { geometry, edgesGeometry } = FittingGeometryFactory.createGeometry(selectedFittingRef.current);
       fittingRotationRef.current = rotation;
       engineRef.current.updatePreviewFitting(
         geometry,
         placePos,
         rotation,
-        selectedFittingRef.current.id
+        selectedFittingRef.current.id,
+        edgesGeometry
       );
     }
   };
@@ -697,7 +695,7 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
         // Actualizar previsualización interactiva de accesorio fantasma
         if (toolRef.current === 'place_fitting' && selectedFittingRef.current) {
           const { rotation, cornerPlacePos } = computeFittingPlacementRotation(snap, finalPos);
-          const placePos = ((snap?.type === 'pipe_corner' || snap?.type === 'dxf_corner') && cornerPlacePos)
+          const placePos = cornerPlacePos
             ? cornerPlacePos
             : (snap ? snap.point : finalPos);
           const { geometry, edgesGeometry } = FittingGeometryFactory.createGeometry(selectedFittingRef.current);
@@ -726,6 +724,14 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
     const unsubscribe = FittingGeometryFactory.onModelLoaded((loadedFittingId) => {
       if (selectedFittingRef.current?.id === loadedFittingId) {
         updateGhostPreview();
+      }
+      const cached = FittingGeometryFactory.getCachedGeometry(loadedFittingId);
+      if (cached && engineRef.current) {
+        engineRef.current.updateFittingGeometryByCatalogId(
+          loadedFittingId,
+          cached.geometry,
+          cached.edgesGeometry
+        );
       }
       engineRef.current?.requestRender(3);
     });
@@ -756,8 +762,8 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
       fittings.forEach((f) => {
         const catalogDef = AIRPIPE_CATALOG.find((item) => item.id === f.fittingId);
         if (catalogDef) {
-          const { geometry, color } = FittingGeometryFactory.createGeometry(catalogDef);
-          engineRef.current?.addFittingMesh(geometry, f.position, f.rotation, color, f.id, f.ports);
+          const { geometry, edgesGeometry, color } = FittingGeometryFactory.createGeometry(catalogDef);
+          engineRef.current?.addFittingMesh(geometry, f.position, f.rotation, color, f.id, f.ports, edgesGeometry, catalogDef.id);
         }
       });
     }
@@ -928,19 +934,25 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
         ? cornerPlacePos
         : (snap ? snap.point : { ...worldCoordRef.current });
       const fitting = selectedFittingRef.current;
-      const { geometry, color } = FittingGeometryFactory.createGeometry(fitting);
+      const { geometry, edgesGeometry, color } = FittingGeometryFactory.createGeometry(fitting);
       const id = `fit_${Date.now()}`;
 
       // --- RECORTES AUTOMÁTICOS DE TUBERÍAS ---
       const isElbow = fitting.category === 'elbow_90' || fitting.category === 'elbow_45';
-      const Larm = fitting.ports[1]?.position.x || 50;
+      const Larm = Math.max(
+        fitting.ports[0]?.position?.x || 0,
+        fitting.ports[0]?.position?.z || 0,
+        fitting.ports[1]?.position?.x || 0,
+        fitting.ports[1]?.position?.z || 0
+      ) || 50;
 
       // Determinar punto focal o vértice del accesorio
       const V: Vector3D = snap?.cornerInfo?.V || (snap ? snap.point : { ...worldCoordRef.current });
 
       // CASO 1: Si es un Codo o se colocó en esquina o extremo de tubería
       if (isElbow || snap?.type === 'pipe_corner' || snap?.type === 'dxf_corner' || snap?.type === 'pipe_end' || snap?.type === 'dxf_endpoint') {
-        // Buscar TODAS las tuberías 3D en pipesRef.current que toquen el vértice V (dentro de 140 mm)
+        // Buscar TODAS las tuberías 3D en pipesRef.current que toquen el vértice V
+        const threshold = Math.max(150, Larm * 1.3);
         const connectedPipes: { pipe: PipeSegment; endType: 'start' | 'end'; dirAwayFromV: Vector3D }[] = [];
 
         for (const p of pipesRef.current) {
@@ -948,18 +960,21 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
           const dEnd = Math.hypot(p.end.x - V.x, p.end.z - V.z);
           const pLen = p.length || Math.hypot(p.end.x - p.start.x, p.end.z - p.start.z) || 1;
 
-          if (dStart <= 140) {
-            connectedPipes.push({
-              pipe: p,
-              endType: 'start',
-              dirAwayFromV: { x: (p.end.x - p.start.x) / pLen, y: 0, z: (p.end.z - p.start.z) / pLen },
-            });
-          } else if (dEnd <= 140) {
-            connectedPipes.push({
-              pipe: p,
-              endType: 'end',
-              dirAwayFromV: { x: (p.start.x - p.end.x) / pLen, y: 0, z: (p.start.z - p.end.z) / pLen },
-            });
+          const minD = Math.min(dStart, dEnd);
+          if (minD <= threshold) {
+            if (dStart <= dEnd) {
+              connectedPipes.push({
+                pipe: p,
+                endType: 'start',
+                dirAwayFromV: { x: (p.end.x - p.start.x) / pLen, y: 0, z: (p.end.z - p.start.z) / pLen },
+              });
+            } else {
+              connectedPipes.push({
+                pipe: p,
+                endType: 'end',
+                dirAwayFromV: { x: (p.start.x - p.end.x) / pLen, y: 0, z: (p.start.z - p.end.z) / pLen },
+              });
+            }
           }
         }
 
@@ -1039,7 +1054,7 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
         };
       });
 
-      engineRef.current?.addFittingMesh(geometry, placePos, rotation, color, id, fitting.ports);
+      engineRef.current?.addFittingMesh(geometry, placePos, rotation, color, id, fitting.ports, edgesGeometry, fitting.id);
 
       onFittingPlaced({
         id,

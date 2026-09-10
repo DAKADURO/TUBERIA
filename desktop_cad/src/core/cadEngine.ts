@@ -672,13 +672,14 @@ export class CADEngine {
     colorHex: number,
     fittingId: string,
     ports: ConnectionPort[],
-    edgesGeometry?: THREE.BufferGeometry
+    edgesGeometry?: THREE.BufferGeometry,
+    catalogId?: string
   ): THREE.Mesh {
     const material = new THREE.MeshLambertMaterial({ color: colorHex });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(position.x, position.y, position.z);
     mesh.rotation.set(rotation.x, rotation.y, rotation.z);
-    mesh.userData = { id: fittingId, isFitting: true, customColor: colorHex };
+    mesh.userData = { id: fittingId, catalogId, isFitting: true, customColor: colorHex };
 
     // Líneas de aristas CAD
     const edgesGeo = edgesGeometry || new THREE.EdgesGeometry(geometry, 25);
@@ -699,6 +700,30 @@ export class CADEngine {
 
     this.requestRender(4);
     return mesh;
+  }
+
+  // Actualizar geometría de accesorios colocados cuando el modelo STEP real GLB termina de descargarse
+  public updateFittingGeometryByCatalogId(
+    catalogId: string,
+    geometry: THREE.BufferGeometry,
+    edgesGeometry?: THREE.BufferGeometry
+  ): boolean {
+    let updated = false;
+    this.fittingsGroup.children.forEach((child) => {
+      const mesh = child as THREE.Mesh;
+      if (mesh.userData?.catalogId === catalogId && mesh.geometry !== geometry) {
+        mesh.geometry = geometry;
+        const edgesChild = mesh.children.find((c) => (c as THREE.LineSegments).isLineSegments) as THREE.LineSegments | undefined;
+        if (edgesChild) {
+          edgesChild.geometry = edgesGeometry || new THREE.EdgesGeometry(geometry, 25);
+        }
+        updated = true;
+      }
+    });
+    if (updated) {
+      this.requestRender(3);
+    }
+    return updated;
   }
 
   // --- SELECCIÓN Y MODIFICACIÓN DE ACCESORIOS COLOCADOS ---
