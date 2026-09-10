@@ -243,6 +243,28 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
       }
     }
 
+    let cornerPlacePos: Vector3D | undefined;
+    const isElbow = selectedFittingRef.current?.category === 'elbow_90' || selectedFittingRef.current?.category === 'elbow_45';
+    if ((snap?.type === 'pipe_end' || snap?.type === 'dxf_endpoint') && isElbow && snap.pipeDirection) {
+      const Larm = selectedFittingRef.current?.ports[1]?.position.x || 50;
+      const isPipeStart = snap.pipeInfo?.projectionT === 0;
+      const u = snap.pipeDirection;
+      if (isPipeStart) {
+        cornerPlacePos = {
+          x: snap.point.x + Larm * u.x,
+          y: snap.point.y,
+          z: snap.point.z + Larm * u.z,
+        };
+        baseAngle += Math.PI;
+      } else {
+        cornerPlacePos = {
+          x: snap.point.x - Larm * u.x,
+          y: snap.point.y,
+          z: snap.point.z - Larm * u.z,
+        };
+      }
+    }
+
     const qBase = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), baseAngle);
     const qRoll = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), roll);
     const q = qBase.clone().multiply(qRoll);
@@ -250,6 +272,7 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
     return {
       rotation: { x: euler.x, y: euler.y, z: euler.z },
       quaternion: q,
+      cornerPlacePos,
     };
   };
 
@@ -883,66 +906,70 @@ export const Viewport: React.FC<ViewportProps> = React.memo(({
     if (e.button === 0 && tool === 'place_fitting' && selectedFittingRef.current) {
       const snap = currentSnapRef.current;
       const { rotation, quaternion, cornerPlacePos } = computeFittingPlacementRotation(snap, worldCoordRef.current);
-      const placePos = ((snap?.type === 'pipe_corner' || snap?.type === 'dxf_corner') && cornerPlacePos)
+      const placePos = cornerPlacePos
         ? cornerPlacePos
         : (snap ? snap.point : { ...worldCoordRef.current });
       const fitting = selectedFittingRef.current;
       const { geometry, color } = FittingGeometryFactory.createGeometry(fitting);
       const id = `fit_${Date.now()}`;
 
-      // Si se colocó sobre una esquina (pipe_corner o dxf_corner), recortar automáticamente cualquier tubo que llegue a la esquina:
-      if ((snap?.type === 'pipe_corner' || snap?.type === 'dxf_corner') && snap.cornerInfo) {
-        const { pipe1Id, pipe2Id, pipe1End, pipe2End, V, u1, u2 } = snap.cornerInfo;
-        const Larm = fitting.ports[1]?.position.x || 50;
+      // --- RECORTES AUTOMÁTICOS DE TUBERÍAS ---
+      const isElbow = fitting.category === 'elbow_90' || fitting.category === 'elbow_45';
+      const Larm = fitting.ports[1]?.position.x || 50;
 
-        const P1: Vector3D = {
-          x: V.x - Larm * u1.x,
-          y: V.y,
-          z: V.z - Larm * u1.z,
-        };
-        const P2: Vector3D = {
-          x: V.x + Larm * u2.x,
-          y: V.y,
-          z: V.z + Larm * u2.z,
-        };
+      // Determinar punto focal o vértice del accesorio
+      const V: Vector3D = snap?.cornerInfo?.V || (snap ? snap.point : { ...worldCoordRef.current });
 
-        // Recortar Tubo 1
-        if (pipe1Id) {
-          const pipe1 = pipes.find((p) => p.id === pipe1Id);
-          if (pipe1) {
-            const newStart = pipe1End === 'start' ? P1 : pipe1.start;
-            const newEnd = pipe1End === 'end' ? P1 : pipe1.end;
-            const newLen = Math.round(Math.hypot(newEnd.x - newStart.x, newEnd.z - newStart.z));
-            if (newLen >= 5) {
-              engineRef.current?.updatePipe(pipe1Id, newStart, newEnd);
-              if (onPipeUpdated) {
-                onPipeUpdated({ ...pipe1, start: newStart, end: newEnd, length: newLen });
-              }
-            }
+      // CASO 1: Si es un Codo o se colocó en esquina o extremo de tubería
+      if (isElbow || snap?.type === 'pipe_corner' || snap?.type === 'dxf_corner' || snap?.type === 'pipe_end' || snap?.type === 'dxf_endpoint') {
+        // Buscar TODAS las tuberías 3D en pipesRef.current que toquen el vértice V (dentro de 140 mm)
+        const connectedPipes: { pipe: PipeSegment; endType: 'start' | 'end'; dirAwayFromV: Vector3D }[] = [];
+
+        for (const p of pipesRef.current) {
+          const dStart = Math.hypot(p.start.x - V.x, p.start.z - V.z);
+          const dEnd = Math.hypot(p.end.x - V.x, p.end.z - V.z);
+          const pLen = p.length || Math.hypot(p.end.x - p.start.x, p.end.z - p.start.z) || 1;
+
+          if (dStart <= 140) {
+            connectedPipes.push({
+              pipe: p,
+              endType: 'start',
+              dirAwayFromV: { x: (p.end.x - p.start.x) / pLen, y: 0, z: (p.end.z - p.start.z) / pLen },
+            });
+          } else if (dEnd <= 140) {
+            connectedPipes.push({
+              pipe: p,
+              endType: 'end',
+              dirAwayFromV: { x: (p.start.x - p.end.x) / pLen, y: 0, z: (p.start.z - p.end.z) / pLen },
+            });
           }
         }
 
-        // Recortar Tubo 2
-        if (pipe2Id) {
-          const pipe2 = pipes.find((p) => p.id === pipe2Id);
-          if (pipe2) {
-            const newStart = pipe2End === 'start' ? P2 : pipe2.start;
-            const newEnd = pipe2End === 'end' ? P2 : pipe2.end;
-            const newLen = Math.round(Math.hypot(newEnd.x - newStart.x, newEnd.z - newStart.z));
-            if (newLen >= 5) {
-              engineRef.current?.updatePipe(pipe2Id, newStart, newEnd);
-              if (onPipeUpdated) {
-                onPipeUpdated({ ...pipe2, start: newStart, end: newEnd, length: newLen });
-              }
+        // Recortar cada tubería conectada alejándola del vértice V por la longitud del brazo Larm
+        connectedPipes.forEach(({ pipe: targetPipe, endType, dirAwayFromV }) => {
+          const trimmedPoint: Vector3D = {
+            x: V.x + Larm * dirAwayFromV.x,
+            y: V.y,
+            z: V.z + Larm * dirAwayFromV.z,
+          };
+
+          const newStart = endType === 'start' ? trimmedPoint : targetPipe.start;
+          const newEnd = endType === 'end' ? trimmedPoint : targetPipe.end;
+          const newLen = Math.round(Math.hypot(newEnd.x - newStart.x, newEnd.z - newStart.z));
+
+          if (newLen >= 5) {
+            engineRef.current?.updatePipe(targetPipe.id, newStart, newEnd);
+            if (onPipeUpdated) {
+              onPipeUpdated({ ...targetPipe, start: newStart, end: newEnd, length: newLen });
             }
           }
-        }
+        });
       }
 
-      // Si se colocó sobre el cuerpo de una tubería 3D (snap.type === 'pipe_body'):
+      // CASO 2: Si se colocó sobre el cuerpo de una tubería 3D (snap.type === 'pipe_body'):
       // Intercalar limpiamente el accesorio dividiendo la tubería en 2 tramos conectados a sus bocas
       if (snap?.type === 'pipe_body' && snap.pipeInfo) {
-        const targetPipe = pipes.find((p) => p.id === snap.pipeInfo?.pipeId);
+        const targetPipe = pipesRef.current.find((p) => p.id === snap.pipeInfo?.pipeId);
         if (targetPipe && fitting.ports.length >= 2) {
           if (fitting.category === 'tee' || fitting.category === 'valve' || fitting.category === 'coupling') {
             const p0Local = fitting.ports[0].position;

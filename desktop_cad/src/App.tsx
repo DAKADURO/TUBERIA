@@ -60,48 +60,67 @@ export function App() {
     const demoPipes: PipeSegment[] = [];
     const demoFittings: PlacedFitting[] = [];
 
-    // Red de aire comprimido demostrativa DN50
-    const p1 = { x: 0, y: 0, z: 0 };
-    const p2 = { x: 2500, y: 0, z: 0 };
-    engineRef.current.addPipe(p1, p2, 50, 'p_main_1');
-    demoPipes.push({ id: 'p_main_1', start: p1, end: p2, diameter: 50, length: 2500 });
-
+    // Codo 90° DN50 en esquina (2500, 0, 0) con brazo Larm = 85mm
     const codoDef = AIRPIPE_CATALOG.find((i) => i.id === 'codo_90_dn50');
+    const Larm = 85;
+
+    // 1. Tubo principal 1 recortado antes del codo: desde (0, 0, 0) hasta (2415, 0, 0)
+    const p1 = { x: 0, y: 0, z: 0 };
+    const p1End = { x: 2500 - Larm, y: 0, z: 0 };
+    engineRef.current.addPipe(p1, p1End, 50, 'p_main_1');
+    demoPipes.push({ id: 'p_main_1', start: p1, end: p1End, diameter: 50, length: 2500 - Larm });
+
+    // Codo 90° colocado exactamente en la esquina conectando boca 1 y boca 2
     if (codoDef) {
       const { geometry, color } = FittingGeometryFactory.createGeometry(codoDef);
-      engineRef.current.addFittingMesh(geometry, p2, { x: 0, y: 0, z: 0 }, color, 'fit_codo_1', codoDef.ports);
+      const codoPos = { x: 2500, y: 0, z: Larm };
+      const codoRot = { x: 0, y: Math.PI, z: 0 };
+      engineRef.current.addFittingMesh(geometry, codoPos, codoRot, color, 'fit_codo_1', codoDef.ports);
       demoFittings.push({
         id: 'fit_codo_1',
         fittingId: codoDef.id,
-        position: p2,
-        rotation: { x: 0, y: 0, z: 0 },
+        position: codoPos,
+        rotation: codoRot,
         ports: codoDef.ports,
       });
     }
 
-    const p3 = { x: 2500, y: 0, z: 0 };
-    const p4 = { x: 2500, y: 0, z: 3000 };
-    engineRef.current.addPipe(p3, p4, 50, 'p_main_2');
-    demoPipes.push({ id: 'p_main_2', start: p3, end: p4, diameter: 50, length: 3000 });
-
+    // 2. Tee DN50 en (2500, 0, 1200) con bocas de paso en Z (-50 mm y +50 mm) y derivación en X (+70 mm)
     const teeDef = AIRPIPE_CATALOG.find((i) => i.id === 'tee_dn50');
+    const teeZ = 1200;
+    const teeHalf = 50;
+
+    // Tramo 2A: desde salida del codo (2500, 0, 85) hasta boca de la Tee (2500, 0, 1150)
+    const p2aStart = { x: 2500, y: 0, z: Larm };
+    const p2aEnd = { x: 2500, y: 0, z: teeZ - teeHalf };
+    engineRef.current.addPipe(p2aStart, p2aEnd, 50, 'p_main_2a');
+    demoPipes.push({ id: 'p_main_2a', start: p2aStart, end: p2aEnd, diameter: 50, length: (teeZ - teeHalf) - Larm });
+
     if (teeDef) {
       const { geometry, color } = FittingGeometryFactory.createGeometry(teeDef);
-      const teePos = { x: 2500, y: 0, z: 1200 };
-      engineRef.current.addFittingMesh(geometry, teePos, { x: 0, y: 0, z: 0 }, color, 'fit_tee_1', teeDef.ports);
+      const teePos = { x: 2500, y: 0, z: teeZ };
+      const teeRot = { x: 0, y: Math.PI, z: 0 };
+      engineRef.current.addFittingMesh(geometry, teePos, teeRot, color, 'fit_tee_1', teeDef.ports);
       demoFittings.push({
         id: 'fit_tee_1',
         fittingId: teeDef.id,
         position: teePos,
-        rotation: { x: 0, y: 0, z: 0 },
+        rotation: teeRot,
         ports: teeDef.ports,
       });
     }
 
-    const p5 = { x: 2500, y: 0, z: 1200 };
-    const p6 = { x: 1200, y: 0, z: 1200 };
-    engineRef.current.addPipe(p5, p6, 50, 'p_branch_1');
-    demoPipes.push({ id: 'p_branch_1', start: p5, end: p6, diameter: 50, length: 700 });
+    // Tramo 2B: desde salida de la Tee (2500, 0, 1250) hasta el final (2500, 0, 3000)
+    const p2bStart = { x: 2500, y: 0, z: teeZ + teeHalf };
+    const p2bEnd = { x: 2500, y: 0, z: 3000 };
+    engineRef.current.addPipe(p2bStart, p2bEnd, 50, 'p_main_2b');
+    demoPipes.push({ id: 'p_main_2b', start: p2bStart, end: p2bEnd, diameter: 50, length: 3000 - (teeZ + teeHalf) });
+
+    // 3. Ramal derivado: desde boca lateral de la Tee (2430, 0, 1200) hacia (1200, 0, 1200)
+    const pBranchStart = { x: 2500 - 70, y: 0, z: teeZ };
+    const pBranchEnd = { x: 1200, y: 0, z: teeZ };
+    engineRef.current.addPipe(pBranchStart, pBranchEnd, 50, 'p_branch_1');
+    demoPipes.push({ id: 'p_branch_1', start: pBranchStart, end: pBranchEnd, diameter: 50, length: 2430 - 1200 });
 
     setPipes(demoPipes);
     setFittings(demoFittings);

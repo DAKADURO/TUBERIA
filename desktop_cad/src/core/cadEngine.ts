@@ -2010,16 +2010,44 @@ export class CADEngine {
 
               if (Math.abs(dot) < 0.96 && Math.abs(s) > 0.05) {
                 bestCornerDist = dist;
+
+                let pipe1Id = cA.isPipe ? cA.pipeId : (cB.isPipe ? cB.pipeId : undefined);
+                let pipe2Id = (cA.isPipe && cB.isPipe) ? cB.pipeId : undefined;
+                let pipe1End = cA.isPipe ? (p.isStartA ? 'start' : 'end') : (cB.isPipe ? (p.isStartB ? 'start' : 'end') : undefined);
+                let pipe2End = (cA.isPipe && cB.isPipe) ? (p.isStartB ? 'start' : 'end') : undefined;
+
+                // Si alguna de las líneas es DXF pero existe una tubería 3D dibujada sobre este nudo:
+                if (!pipe1Id || !pipe2Id) {
+                  this.pipesGroup.children.forEach((child) => {
+                    if (child.userData?.isPipe && child.userData.start && child.userData.end) {
+                      const sPt = child.userData.start as Vector3D;
+                      const ePt = child.userData.end as Vector3D;
+                      const dS = Math.hypot(sPt.x - Vx, sPt.z - Vz);
+                      const dE = Math.hypot(ePt.x - Vx, ePt.z - Vz);
+                      const pid = child.userData.id;
+                      if (dS <= 140) {
+                        if (!pipe1Id) { pipe1Id = pid; pipe1End = 'start'; }
+                        else if (!pipe2Id && pipe1Id !== pid) { pipe2Id = pid; pipe2End = 'start'; }
+                      } else if (dE <= 140) {
+                        if (!pipe1Id) { pipe1Id = pid; pipe1End = 'end'; }
+                        else if (!pipe2Id && pipe1Id !== pid) { pipe2Id = pid; pipe2End = 'end'; }
+                      }
+                    }
+                  });
+                }
+
+                const hasPipe = Boolean(pipe1Id || pipe2Id);
+
                 cornerResult = {
                   point: { x: Vx, y: 0, z: Vz },
-                  type: (cA.isPipe || cB.isPipe) ? 'pipe_corner' : 'dxf_corner',
+                  type: hasPipe ? 'pipe_corner' : 'dxf_corner',
                   pipeDirection: u1,
                   pipeAngle: Math.atan2(u1.x, u1.z),
                   cornerInfo: {
-                    pipe1Id: cA.isPipe ? cA.pipeId : (cB.isPipe ? cB.pipeId : undefined),
-                    pipe2Id: (cA.isPipe && cB.isPipe) ? cB.pipeId : undefined,
-                    pipe1End: cA.isPipe ? (p.isStartA ? 'start' : 'end') : (cB.isPipe ? (p.isStartB ? 'start' : 'end') : undefined),
-                    pipe2End: (cA.isPipe && cB.isPipe) ? (p.isStartB ? 'start' : 'end') : undefined,
+                    pipe1Id,
+                    pipe2Id,
+                    pipe1End: pipe1End as any,
+                    pipe2End: pipe2End as any,
                     V: { x: Vx, y: 0, z: Vz },
                     u1,
                     u2,
