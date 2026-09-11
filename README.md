@@ -1,81 +1,34 @@
-# 📦 Almacen 3.0 - Sistema Pro de Gestión de Inventarios
+# 📐 PipeCAD Studio 3D
 
-Sistema industrial de alto rendimiento diseñado para la gestión centralizada de refacciones, tubería y consumibles de **Proair**. Construido con una arquitectura moderna, desacoplada y una interfaz premium de última generación.
-
----
-
-## 🚀 Capacidades Principales
-
-### 💎 Interfaz Premium (Glassmorphism)
-*   **Estética de Vanguardia**: Interfaz moderna basada en efectos de cristal, desenfoques (blur) y gradientes profundos que ofrecen una experiencia visual superior.
-*   **Modo Oscuro Nativo**: Diseño optimizado para entornos industriales y oficinas, reduciendo la fatiga visual.
-*   **Optimización Móvil**: Experiencia 100% responsive con menús laterales deslizantes y controles táctiles amigables.
-
-### 🔄 Gestión Multi-Contexto Inteligente
-*   **Dual Inventory System**: Controla los flujos de **Airpipe** (Tubería) y **Proair** (Refacciones) de forma independiente desde una única plataforma.
-*   **Persistencia de Selección**: El sistema recuerda tu contexto de trabajo entre sesiones para maximizar la eficiencia.
-*   **Bases de Datos Aisladas**: Integridad de datos garantizada mediante motores SQLite independientes para cada contexto de negocio.
-
-### 🛠️ Herramientas de Control Operativo
-*   **Inventario Maestro**: Visualización en tiempo real de existencias calculadas mediante vistas optimizadas de SQL.
-*   **Registro de Movimientos**: Trazabilidad completa de Entradas, Salidas y Traslados entre almacenes.
-*   **Control de Cajas/Ubicaciones**: Gestión precisa de la ubicación física de los productos para reducir tiempos de búsqueda.
-*   **Motor de Ajustes**: Herramientas integradas para realizar correcciones de inventario auditadas.
-*   **Dashboard Estadístico**: Panel principal con métricas clave y resumen de actividades recientes.
-
-### 🛡️ Seguridad y Administración de Usuarios
-*   **RBAC (Role-Based Access Control)**: Restricción de funciones sensibles según el rol del usuario (Administrador vs Personal).
-*   **Flujo de Registro con Aprobación**: Los nuevos usuarios requieren validación administrativa antes de acceder al sistema.
-*   **Infraestructura Segura**: Implementación de headers de seguridad avanzados (CSP, HSTS, X-Frame) para proteger la información.
+Software CAD 3D especializado en diseño, trazado y cubicación de redes de tuberías industriales y aire comprimido.
 
 ---
 
-## 🛠️ Stack Tecnológico
+## 🚀 Inicio Rápido
 
-*   **Frontend**: [Next.js 14](https://nextjs.org/) + [React](https://reactjs.org/) + [Tailwind CSS](https://tailwindcss.com/)
-*   **Backend**: [FastAPI](https://fastapi.tiangolo.com/) (Python 3.11+) + [SQLAlchemy](https://www.sqlalchemy.org/)
-*   **Estilos**: Custom CSS con variables dinámicas y efectos de translucidez.
-*   **Despliegue**: [Docker](https://www.docker.com/) & [Docker Compose](https://docs.docker.com/compose/) para una portabilidad total.
+1. **Doble Clic (Recomendado)**:
+   Ejecuta `iniciar_cad.bat` para abrir el servidor de desarrollo y el navegador automáticamente.
 
----
+2. **Por Terminal**:
+   `ash
+   npm install
+   npm run dev
+   `
+   Abre [http://localhost:5173](http://localhost:5173) en tu navegador.
 
-## 📦 Instalación y Configuración
-
-### 🐳 Opción A: Docker (Recomendado)
-Asegúrate de tener Docker instalado y ejecuta:
-```bash
-docker-compose up -d
-```
-
-### 🐍 Opción B: Ejecución Manual
-
-#### 1. Backend (API)
-```bash
-cd backend
-python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# Linux/Mac:
-source .venv/bin/activate
-
-pip install -r requirements.txt
-python init_db.py
-python seed_data.py
-uvicorn main:app --reload
-```
-
-#### 2. Frontend (UI)
-```bash
-cd frontend
-npm install
-npm run dev
-```
+3. **Compilación para Producción**:
+   `ash
+   npm run build
+   `
 
 ---
 
-## 🔗 Acceso al Ecosistema
-*   **App Web**: `http://localhost:3000`
-*   **Documentación API (Swagger)**: `http://localhost:8000/docs`
+## ✨ Características Principales
 
----
-*Desarrollado para la excelencia operativa en Proair. 2026.*
+* **Visualizador y Modelador 3D / 2D**: Motor Three.js con renderizado acelerado por GPU bajo demanda y cambio de tema (Fondo Técnico Blanco / Fondo Oscuro).
+* **Catálogo Paramétrico Ultra**: 157 modelos reales de accesorios Ultra (codos 90°, 45°, tes, coples, reducciones, bridas, válvulas de mariposa y esfera) desde DN15 hasta DN160.
+* **Sistema de Trazado de Tuberías**: Trazado continuo ortogonal y libre con snapping OSNAP inteligente (F3), detección de ejes y unión automática.
+* **Inserción Libre de Válvulas y Accesorios**: Deslizamiento y colocación interactiva sobre tuberías existentes con tecla Shift/Alt para desactivar snap si se desea.
+* **Trimming Automático**: Ajuste geométrico exacto de tuberías en conexiones y vértices.
+* **Medición e Isométricos**: Cotas milimétricas, cálculo automático de BOM (Bill of Materials) y exportación DXF.
+
